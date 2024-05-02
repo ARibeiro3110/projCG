@@ -1,0 +1,2 @@
+# projCG
+Computer Graphics Project
