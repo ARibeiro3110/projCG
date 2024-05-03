@@ -36,9 +36,9 @@ function createCamera() {
                                          window.innerWidth / window.innerHeight,
                                          1,
                                          1000);
-    camera.position.x = 2;
-    camera.position.y = 2;
-    camera.position.z = 5;
+    camera.position.x = 0;
+    camera.position.y = 15;
+    camera.position.z = 15;
     camera.lookAt(scene.position);
 
     controls = new OrbitControls(camera, renderer.domElement);
@@ -59,21 +59,9 @@ function createLight() {
 /* CREATE OBJECT3D(S) */
 ////////////////////////
 function material(color) {
-    'use strict';
-    switch (color) {
-        case "red":
-            return new THREE.MeshBasicMaterial({color: 0xff0000, wireframe: true});
-        case "green":
-            return new THREE.MeshBasicMaterial({color: 0x00ff00, wireframe: true});
-        case "blue":
-            return new THREE.MeshBasicMaterial({color: 0x0000ff, wireframe: true});
-        case "yellow":
-            return new THREE.MeshBasicMaterial({color: 0xffff00, wireframe: true});
-        case "purple":
-            return new THREE.MeshBasicMaterial({color: 0x800080, wireframe: true});
-    }
     return new THREE.MeshBasicMaterial({color: color, wireframe: true});
 }
+
 function createCrane() {
     'use strict';
 
@@ -81,29 +69,27 @@ function createCrane() {
     var h_base = 1;
     var l_torre = 1;
     var h_torre = 7;
+    var l_portaLancaBase = 1;
+    var h_portaLancaBase = 3;
 
     var base = new THREE.Mesh(new THREE.CylinderGeometry(r_base, r_base, h_base), material("green"));
-
     var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(l_torre, h_torre, l_torre), material("blue"));
     torreMetalica.position.set(0, h_base/2 + h_torre/2, 0);
 
     var ref_eixo = new THREE.Object3D();
-    ref_eixo.position.set(0, h_base + h_torre, 0);
+    ref_eixo.position.set(0, h_base/2 + h_torre, 0);
 
-        // var portaLancaBase = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 1), material("purple"));
-        // ref_eixo.add(portaLancaBase);
+        var portaLancaBase = new THREE.Mesh(new THREE.BoxGeometry(l_portaLancaBase, h_portaLancaBase, l_portaLancaBase), material("purple"));
+        portaLancaBase.position.y = h_portaLancaBase/2;
+        ref_eixo.add(portaLancaBase);
 
-        var portaLancaTopo = new THREE.Mesh(new THREE.TetrahedronGeometry(Math.sqrt(3/8)), material("red"));
-        // rotate the tetrahedron by the axis z=-x
+        var portaLancaTopo = createTetrahedron(1, 2, "red");
+        portaLancaTopo.position.y = h_portaLancaBase;
+        ref_eixo.add(portaLancaTopo);
 
-        portaLancaTopo.position.set(0, 0, 0);
-        
-        var quadrado = new THREE.Mesh(new THREE.SphereGeometry(Math.sqrt(3/8)), material("green"));
-        var grua = new THREE.Object3D();
-        grua.add(portaLancaTopo);
-        grua.add(quadrado);
-    // grua.add(base);
-    // grua.add(torreMetalica);
+    var grua = new THREE.Object3D();
+    grua.add(base);
+    grua.add(torreMetalica);
     grua.add(ref_eixo);
 
     scene.add(grua);
@@ -194,6 +180,39 @@ function onKeyDown(e) {
 function onKeyUp(e){
     'use strict';
 }
+
+/////////////////////////////
+/* UTILS */
+/////////////////////////////
+
+function createTetrahedron(edgeLength, verticalHeight, color) {
+    'use strict';
+    
+    // Calculate the altitude of the equilateral triangle that forms the base of the tetrahedron
+    var base_height = Math.sqrt(3) / 2 * edgeLength;
+    
+    // Define the vertices of the tetrahedron
+    var vertices = new Float32Array([
+        -edgeLength / 2, 0, base_height / 3, // vertex 0
+        edgeLength / 2, 0, base_height / 3,  // vertex 1
+        0, 0, -2 * base_height / 3,         // vertex 2
+        0, verticalHeight, 0                // vertex 3
+    ]);
+
+    var geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex([
+        0, 1, 2, // base face
+        0, 1, 3, // side face 1
+        1, 2, 3, // side face 2
+        2, 0, 3  // side face 3
+    ]);
+
+    var tetrahedron = new THREE.Mesh(geometry, material(color));
+
+    return tetrahedron;
+}
+
 
 init();
 animate();
