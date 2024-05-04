@@ -25,6 +25,7 @@ function createScene() {
     scene.background = new THREE.Color(0x000000);
 
     createCrane();
+    createContainer(2, 1.5, 1.5, "red");
 }
 
 //////////////////////
@@ -64,33 +65,140 @@ function material(color) {
 
 function createCrane() {
     'use strict';
-
-    var r_base = 2.5;
-    var h_base = 1;
+    
+    var r_base = 1.5;
+    var h_base = 0.5;
+    
     var l_torre = 1;
     var h_torre = 7;
+    var w_torre = l_torre;
+    
     var l_portaLancaBase = 1;
     var h_portaLancaBase = 3;
+    var w_portaLancaBase = l_portaLancaBase;
+
+    var h_portaLancaTopo = 2;
+    
+    var l_cabine = 1;
+    var h_cabine = 1;
+    var w_cabine = 0.5;
+    var d_torre_cabine = 0.5;
+
+    var l_lanca = 10;
+    var h_lanca = 1;
+    var w_lanca = h_lanca;
+    var d_torre_lanca = 2;
+    
+    var l_contraLanca = 4;
+    var h_contraLanca = 1;
+    var w_contraLanca = 1;
+
+    var l_contrapeso = 1;
+    var h_contrapeso = 2;
+    var w_contrapeso = 1;
+    var d_portaLanca_contrapeso = 2;
+
+    var r_tirante = 0.01;
+    var d_torre_extremoTiranteLanca = 5.5;
+    var l_tiranteLanca = Math.sqrt(h_portaLancaTopo**2 + d_torre_extremoTiranteLanca**2);
+    var l_tiranteContraLanca = Math.sqrt((h_portaLancaTopo+h_contraLanca)**2 + d_portaLanca_contrapeso**2);
+
+    var l_carrinho = 1;
+    var h_carrinho = 0.5;
+    var w_carrinho = 1;
+
+    var beta = l_lanca - 1; // TODO: alterar isto quando adicionarmos grau de liberdade
+    var gamma = 3;  // TODO: alterar isto quando adicionarmos grau de liberdade
+
+    var r_cabo = 0.05;
+    var l_cabo = gamma;
+
+    var l_bloco = 0.75
+    var h_bloco = 0.75
+    var w_bloco = 0.75
+    
+    var h_dedo = 1;
 
     var base = new THREE.Mesh(new THREE.CylinderGeometry(r_base, r_base, h_base), material("green"));
-    var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(l_torre, h_torre, l_torre), material("blue"));
+    var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(l_torre, h_torre, w_torre), material("blue"));
     torreMetalica.position.set(0, h_base/2 + h_torre/2, 0);
 
     var ref_eixo = new THREE.Object3D();
     ref_eixo.position.set(0, h_base/2 + h_torre, 0);
 
-        var portaLancaBase = new THREE.Mesh(new THREE.BoxGeometry(l_portaLancaBase, h_portaLancaBase, l_portaLancaBase), material("purple"));
+        var portaLancaBase = new THREE.Mesh(new THREE.BoxGeometry(l_portaLancaBase, h_portaLancaBase, w_portaLancaBase), material("purple"));
         portaLancaBase.position.y = h_portaLancaBase/2;
         ref_eixo.add(portaLancaBase);
 
-        var portaLancaTopo = createTetrahedron(1, 2, "red");
+        var portaLancaTopo = createTetrahedron(1, h_portaLancaTopo, "red");
         portaLancaTopo.position.y = h_portaLancaBase;
         ref_eixo.add(portaLancaTopo);
+
+        var cabine = new THREE.Mesh(new THREE.BoxGeometry(l_cabine, h_cabine, w_cabine), material("yellow"));
+        cabine.position.set(0, h_cabine/2 + d_torre_cabine, l_torre/2 + w_cabine/2);
+        ref_eixo.add(cabine);
+    
+        var lanca = new THREE.Mesh(new THREE.BoxGeometry(l_lanca, h_lanca, w_lanca), material("orange"));
+        lanca.position.set(l_lanca/2 + l_portaLancaBase/2, h_lanca/2 + d_torre_lanca, 0);
+        ref_eixo.add(lanca);
+
+        var contraLanca = new THREE.Mesh(new THREE.BoxGeometry(l_contraLanca, h_contraLanca, w_contraLanca), material("blue"));
+        contraLanca.position.set(-l_contraLanca/2 + l_portaLancaBase/2, h_contraLanca/2 + d_torre_lanca, 0);
+        ref_eixo.add(contraLanca);
+
+        var contrapeso = new THREE.Mesh(new THREE.BoxGeometry(l_contrapeso, h_contrapeso, w_contrapeso), material("red"));
+        contrapeso.position.set(-d_portaLanca_contrapeso - l_contrapeso/2, h_contrapeso/2 + h_contraLanca, 0);
+        ref_eixo.add(contrapeso);
+
+        var tiranteLanca = new THREE.Mesh(new THREE.CylinderGeometry(r_tirante, r_tirante, l_tiranteLanca), material("green"));
+        tiranteLanca.rotation.z = Math.atan(d_torre_extremoTiranteLanca / h_portaLancaTopo);
+        tiranteLanca.position.set(d_torre_extremoTiranteLanca/2, h_portaLancaBase + h_portaLancaTopo/2, 0);
+        ref_eixo.add(tiranteLanca);
+        
+        var tiranteContraLanca1 = new THREE.Mesh(new THREE.CylinderGeometry(r_tirante, r_tirante, l_tiranteContraLanca), material("green"));
+        tiranteContraLanca1.rotation.z = -Math.atan(d_portaLanca_contrapeso / (h_portaLancaTopo + h_contraLanca));
+        tiranteContraLanca1.rotation.y = Math.atan(w_contraLanca/2 / d_portaLanca_contrapeso)
+        tiranteContraLanca1.position.set(-d_portaLanca_contrapeso/2, h_portaLancaBase + h_portaLancaTopo - (h_portaLancaTopo+h_contraLanca)/2, w_contraLanca/4);
+        ref_eixo.add(tiranteContraLanca1);
+
+        var tiranteContraLanca2 = new THREE.Mesh(new THREE.CylinderGeometry(r_tirante, r_tirante, l_tiranteContraLanca), material("green"));
+        tiranteContraLanca2.rotation.z = -Math.atan(d_portaLanca_contrapeso / (h_portaLancaTopo + h_contraLanca));
+        tiranteContraLanca2.rotation.y = -Math.atan(w_contraLanca/2 / d_portaLanca_contrapeso)
+        tiranteContraLanca2.position.set(-d_portaLanca_contrapeso/2, h_portaLancaBase + h_portaLancaTopo/2 - h_contraLanca/2, -w_contraLanca/4);
+        ref_eixo.add(tiranteContraLanca2);
+
+        var ref_carrinho = new THREE.Object3D();
+        ref_carrinho.position.set(l_portaLancaBase/2 + l_carrinho/2 + beta, d_torre_lanca, 0); // TODO: alterar beta
+        
+            var carrinho = new THREE.Mesh(new THREE.BoxGeometry(l_carrinho, h_carrinho, w_carrinho), material("pink"));
+            carrinho.position.y = -h_carrinho/2;
+            ref_carrinho.add(carrinho); 
+
+            var cabo_de_aco = new THREE.Mesh(new THREE.CylinderGeometry(r_cabo, r_cabo, l_cabo), material("green"));
+            cabo_de_aco.position.y = -h_carrinho - l_cabo/2;
+            ref_carrinho.add(cabo_de_aco);
+
+            var ref_bloco = new THREE.Object3D();
+            ref_bloco.position.y = -h_carrinho - l_cabo;
+
+                var bloco = new THREE.Mesh(new THREE.BoxGeometry(l_bloco, h_bloco, w_bloco), material("brown"));
+                bloco.position.y = -h_bloco/2;
+                ref_bloco.add(bloco);
+
+                for (var i = 1; i <= 4; i++) {
+                    var dedo = createTetrahedron(0.25, -h_dedo, "yellow");
+                    dedo.position.set(p(i) * l_bloco / 4, -h_bloco, q(i) * l_bloco / 4);
+                    ref_bloco.add(dedo);
+                }
+                
+
 
     var grua = new THREE.Object3D();
     grua.add(base);
     grua.add(torreMetalica);
     grua.add(ref_eixo);
+    ref_eixo.add(ref_carrinho);
+    ref_carrinho.add(ref_bloco);
 
     scene.add(grua);
 }
@@ -213,6 +321,56 @@ function createTetrahedron(edgeLength, verticalHeight, color) {
     return tetrahedron;
 }
 
+function p(n){ return Math.sign(-n%2 + 0.5); }
+function q(n){ return Math.sign(-2*n + 5); }
+
+function createContainer(width, height, depth, color) {
+    'use strict';
+
+    var vertices = new Float32Array([
+        // Front face
+        -width / 2, -height / 2, depth / 2,   // bottom left
+        width / 2, -height / 2, depth / 2,    // bottom right
+        width / 2, height / 2, depth / 2,     // top right
+        -width / 2, height / 2, depth / 2,    // top left
+
+        // Back face
+        -width / 2, -height / 2, -depth / 2,  // bottom left
+        width / 2, -height / 2, -depth / 2,   // bottom right
+        width / 2, height / 2, -depth / 2,    // top right
+        -width / 2, height / 2, -depth / 2,   // top left
+
+        // Bottom face
+        -width / 2, -height / 2, depth / 2,   // front left
+        width / 2, -height / 2, depth / 2,    // front right
+        width / 2, -height / 2, -depth / 2,   // back right
+        -width / 2, -height / 2, -depth / 2,  // back left
+    ]);
+
+    var indices = [
+        // Front face
+        0, 1, 2,  0, 2, 3,
+        // Back face
+        4, 6, 5,  4, 7, 6,
+        // Bottom face
+        8, 9, 10, 8, 10, 11,
+        // Right face
+        1, 5, 6,  1, 6, 2,
+        // Left face
+        0, 3, 7,  0, 7, 4
+    ];
+
+    var geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+
+    var cuboid = new THREE.Mesh(geometry, material(color));
+
+    cuboid.position.set(6, height/2, 6);
+    scene.add(cuboid);
+
+    return cuboid;
+}
 
 init();
 animate();
