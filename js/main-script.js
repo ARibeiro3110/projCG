@@ -6,6 +6,8 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 var camera, scene, renderer, controls;
 
+var grua;
+
 //////////////////////
 /* GLOBAL VARIABLES */
 //////////////////////
@@ -59,12 +61,10 @@ function createLight() {
 ////////////////////////
 /* CREATE OBJECT3D(S) */
 ////////////////////////
-function material(color) {
-    return new THREE.MeshBasicMaterial({color: color, wireframe: true});
-}
-
 function createCrane() {
     'use strict';
+
+    grua = new THREE.Object3D();
     
     var r_base = 1.5;
     var h_base = 0.5;
@@ -107,23 +107,28 @@ function createCrane() {
     var h_carrinho = 0.5;
     var w_carrinho = 1;
 
-    var beta = l_lanca - 1; // TODO: alterar isto quando adicionarmos grau de liberdade
-    var gamma = 3;  // TODO: alterar isto quando adicionarmos grau de liberdade
+    var gamma = 0;  // TODO: alterar isto quando adicionarmos grau de liberdade
 
     var r_cabo = 0.05;
     var l_cabo = gamma;
 
-    var l_bloco = 0.75
-    var h_bloco = 0.75
-    var w_bloco = 0.75
+    var l_bloco = 0.75;
+    var h_bloco = 0.75;
+    var w_bloco = 0.75;
     
     var h_dedo = 1;
+
+    // add white plane in y = -h_base/2
+    var plane = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshBasicMaterial({color: "white", wireframe: false}));
+    plane.rotation.x = -Math.PI/2;
+    plane.position.y = 0;
 
     var base = new THREE.Mesh(new THREE.CylinderGeometry(r_base, r_base, h_base), material("green"));
     var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(l_torre, h_torre, w_torre), material("blue"));
     torreMetalica.position.set(0, h_base/2 + h_torre/2, 0);
 
     var ref_eixo = new THREE.Object3D();
+    ref_eixo.name = "ref_eixo";
     ref_eixo.position.set(0, h_base/2 + h_torre, 0);
 
         var portaLancaBase = new THREE.Mesh(new THREE.BoxGeometry(l_portaLancaBase, h_portaLancaBase, w_portaLancaBase), material("purple"));
@@ -168,7 +173,10 @@ function createCrane() {
         ref_eixo.add(tiranteContraLanca2);
 
         var ref_carrinho = new THREE.Object3D();
-        ref_carrinho.position.set(l_portaLancaBase/2 + l_carrinho/2 + beta, d_torre_lanca, 0); // TODO: alterar beta
+        ref_carrinho.name = "ref_carrinho";
+        ref_carrinho.userData.max_x = l_torre/2 + l_lanca - l_carrinho/2;
+        ref_carrinho.userData.min_x = l_torre/2 + l_carrinho/2;
+        ref_carrinho.position.set(ref_carrinho.userData.max_x, d_torre_lanca, 0); // TODO: alterar beta
         
             var carrinho = new THREE.Mesh(new THREE.BoxGeometry(l_carrinho, h_carrinho, w_carrinho), material("pink"));
             carrinho.position.y = -h_carrinho/2;
@@ -179,6 +187,9 @@ function createCrane() {
             ref_carrinho.add(cabo_de_aco);
 
             var ref_bloco = new THREE.Object3D();
+            ref_bloco.name = "ref_bloco";
+            ref_bloco.userData.max_y = -h_carrinho;
+            ref_bloco.userData.min_y = (h_dedo + h_bloco) -(h_base/2 + h_torre + d_torre_lanca);
             ref_bloco.position.y = -h_carrinho - l_cabo;
 
                 var bloco = new THREE.Mesh(new THREE.BoxGeometry(l_bloco, h_bloco, w_bloco), material("brown"));
@@ -187,16 +198,15 @@ function createCrane() {
 
                 for (var i = 1; i <= 4; i++) {
                     var dedo = createTetrahedron(0.25, -h_dedo, "yellow");
-                    dedo.position.set(p(i) * l_bloco / 4, -h_bloco, q(i) * l_bloco / 4);
+                    dedo.position.set(p(i) * l_bloco / 4, -h_bloco, q(i) * l_bloco / 4); // FIXME: w_bloco
                     ref_bloco.add(dedo);
                 }
-                
 
-
-    var grua = new THREE.Object3D();
     grua.add(base);
     grua.add(torreMetalica);
     grua.add(ref_eixo);
+    grua.add(plane);
+    
     ref_eixo.add(ref_carrinho);
     ref_carrinho.add(ref_bloco);
 
@@ -251,6 +261,10 @@ function init() {
     createCamera();
 
     render();
+
+    // window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKeyDown);
+    // window.addEventListener("keyup", onKeyUp);
 }
 
 /////////////////////
@@ -280,6 +294,45 @@ function onResize() {
 function onKeyDown(e) {
     'use strict';
 
+    switch (e.keyCode) {
+        // TODO: aplicar mudanças sobre graus de liberdade em vez de atributos do referencial
+
+        case 81 || 113:  // Q or q
+            grua.getObjectByName("ref_eixo").rotation.y += 0.025/4;
+            break;
+
+        case 65 || 97: // A or a
+            grua.getObjectByName("ref_eixo").rotation.y -= 0.025/4;
+            break;
+        
+        case 87 || 119: // W or w
+            var ref = grua.getObjectByName("ref_carrinho");
+            if (ref.position.x < ref.userData.max_x)
+                ref.position.x = roundTo(ref.position.x + 0.05, 2)
+            console.log(ref.position.x);
+            break;
+        
+        case 83 || 115: // S or s
+            var ref = grua.getObjectByName("ref_carrinho");
+            if (ref.position.x > ref.userData.min_x)
+                ref.position.x = roundTo(ref.position.x - 0.05, 2);
+            console.log(ref.position.x);
+            break;
+
+        case 69 || 101: // E or e
+            var ref = grua.getObjectByName("ref_bloco");
+            if (ref.position.y > ref.userData.min_y)
+                ref.position.y = roundTo(ref.position.y - 0.05, 2);
+            console.log(ref.position.y);
+            break;
+
+        case 68 || 100: // D or d
+            var ref = grua.getObjectByName("ref_bloco");
+            if (ref.position.y < ref.userData.max_y)
+                ref.position.y = roundTo(ref.position.y + 0.05, 2);
+            console.log(ref.position.y);
+            break;
+    }
 }
 
 ///////////////////////
@@ -370,6 +423,15 @@ function createContainer(width, height, depth, color) {
     scene.add(cuboid);
 
     return cuboid;
+}
+
+function material(color) {
+    return new THREE.MeshBasicMaterial({color: color, wireframe: true});
+}
+
+function roundTo(number, decimalPlaces) {
+    let factor = Math.pow(10, decimalPlaces);
+    return Math.round(number * factor) / factor;
 }
 
 init();
