@@ -107,10 +107,8 @@ function createCrane() {
     var h_carrinho = 0.5;
     var w_carrinho = 1;
 
-    var gamma = 0;  // TODO: alterar isto quando adicionarmos grau de liberdade
-
     var r_cabo = 0.05;
-    var l_cabo = gamma;
+    var l_cabo = 2;
 
     var l_bloco = 0.75;
     var h_bloco = 0.75;
@@ -183,6 +181,7 @@ function createCrane() {
             ref_carrinho.add(carrinho); 
 
             var cabo_de_aco = new THREE.Mesh(new THREE.CylinderGeometry(r_cabo, r_cabo, l_cabo), material("green"));
+            cabo_de_aco.name = "cabo_de_aco";
             cabo_de_aco.position.y = -h_carrinho - l_cabo/2;
             ref_carrinho.add(cabo_de_aco);
 
@@ -198,6 +197,8 @@ function createCrane() {
 
                 for (var i = 1; i <= 4; i++) {
                     var dedo = createTetrahedron(0.25, -h_dedo, "yellow");
+                    // TODO: add g(i) rotation
+                    dedo.name = 'dedo' + i;
                     dedo.position.set(p(i) * l_bloco / 4, -h_bloco, q(i) * l_bloco / 4); // FIXME: w_bloco
                     ref_bloco.add(dedo);
                 }
@@ -234,7 +235,6 @@ function handleCollisions(){
 ////////////
 function update(){
     'use strict';
-
 }
 
 /////////////
@@ -297,40 +297,75 @@ function onKeyDown(e) {
     switch (e.keyCode) {
         // TODO: aplicar mudanças sobre graus de liberdade em vez de atributos do referencial
 
-        case 81 || 113:  // Q or q
+        case 113: // q
+        case 81:  // Q
             grua.getObjectByName("ref_eixo").rotation.y += 0.025/4;
             break;
 
-        case 65 || 97: // A or a
+        case 97:  // a
+        case 65:  // A
             grua.getObjectByName("ref_eixo").rotation.y -= 0.025/4;
             break;
         
-        case 87 || 119: // W or w
+        case 119: // w
+        case 87:  // W
             var ref = grua.getObjectByName("ref_carrinho");
             if (ref.position.x < ref.userData.max_x)
                 ref.position.x = roundTo(ref.position.x + 0.05, 2)
             console.log(ref.position.x);
             break;
         
-        case 83 || 115: // S or s
+        case 115: // s
+        case 83:  // S
             var ref = grua.getObjectByName("ref_carrinho");
             if (ref.position.x > ref.userData.min_x)
                 ref.position.x = roundTo(ref.position.x - 0.05, 2);
             console.log(ref.position.x);
             break;
-
-        case 69 || 101: // E or e
+        
+        case 101: // e
+        case 69:  // E
             var ref = grua.getObjectByName("ref_bloco");
-            if (ref.position.y > ref.userData.min_y)
-                ref.position.y = roundTo(ref.position.y - 0.05, 2);
+            var ref_carrinho = grua.getObjectByName("ref_carrinho");
+            var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
+            if (ref.position.y > ref.userData.min_y) {
+                // TODO cleanup and set constant
+                ref.position.y = roundTo(ref.position.y - 0.05, 4);
+                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y - 0.05/2, 4);
+                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y + 0.05/2, 4);
+            }
+            console.log(ref.position.y);
+            break;
+        
+        case 100: // D
+        case 68:  // d
+            var ref = grua.getObjectByName("ref_bloco");
+            var ref_carrinho = grua.getObjectByName("ref_carrinho");
+            var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
+            if (ref.position.y < ref.userData.max_y) {
+                // TODO cleanup and set constant
+                ref.position.y = roundTo(ref.position.y + 0.05, 4);
+                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y + 0.05/2, 4);
+                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y - 0.05/2, 4);
+            }
             console.log(ref.position.y);
             break;
 
-        case 68 || 100: // D or d
+        case 114: // r
+        case 82:  // R
             var ref = grua.getObjectByName("ref_bloco");
-            if (ref.position.y < ref.userData.max_y)
-                ref.position.y = roundTo(ref.position.y + 0.05, 2);
-            console.log(ref.position.y);
+            if (ref) {
+                var angle = Math.PI / 24;
+
+                for (var i = 1; i <= 4; i++) {
+                    var dedo = ref.getObjectByName('dedo' + i);
+                    if (dedo) {
+                        var axis = new THREE.Vector3(p(i), 0, q(i));  // check this
+                        axis.normalize(); 
+                        dedo.rotateOnAxis(axis, angle);
+                    }
+                }
+            }
             break;
     }
 }
@@ -375,7 +410,10 @@ function createTetrahedron(edgeLength, verticalHeight, color) {
 }
 
 function p(n){ return Math.sign(-n%2 + 0.5); }
+
 function q(n){ return Math.sign(-2*n + 5); }
+
+function g(n){ return -p(n)*((q(n)+1)/2 * Math.PI/4 - ((q(n)-1)/2 * Math.PI/12)); }
 
 function createContainer(width, height, depth, color) {
     'use strict';
