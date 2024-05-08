@@ -8,7 +8,7 @@ var camera, scene, renderer, controls;
 
 var cameraFront, cameraSide, cameraTop, cameraFixedOrtho, cameraFixedPerspective, cameraMobile;
 
-var grua;
+var grua, container, object;
 
 //////////////////////
 /* GLOBAL VARIABLES */
@@ -28,8 +28,9 @@ function createScene() {
     // background color
     scene.background = new THREE.Color(0x000000);  // TODO: change to light colour
 
-    createCrane();
-    createContainer(2, 1.5, 1.5, "red");
+    grua = createCrane();
+    container = createContainer(2, 1.5, 1.5, "red");
+    object = createObject(0.5, "blue");
 }
 
 //////////////////////
@@ -103,7 +104,7 @@ function createLight() {
 function createCrane() {
     'use strict';
 
-    grua = new THREE.Object3D();
+    var grua = new THREE.Object3D();
     
     var r_base = 1.5;
     var h_base = 0.5;
@@ -251,6 +252,74 @@ function createCrane() {
     ref_carrinho.add(ref_bloco);
 
     scene.add(grua);
+
+    return grua;
+}
+
+
+function createContainer(width, height, depth, color) {
+    'use strict';
+
+    var vertices = new Float32Array([
+        // Front face
+        -width / 2, -height / 2, depth / 2,   // bottom left
+        width / 2, -height / 2, depth / 2,    // bottom right
+        width / 2, height / 2, depth / 2,     // top right
+        -width / 2, height / 2, depth / 2,    // top left
+
+        // Back face
+        -width / 2, -height / 2, -depth / 2,  // bottom left
+        width / 2, -height / 2, -depth / 2,   // bottom right
+        width / 2, height / 2, -depth / 2,    // top right
+        -width / 2, height / 2, -depth / 2,   // top left
+
+        // Bottom face
+        -width / 2, -height / 2, depth / 2,   // front left
+        width / 2, -height / 2, depth / 2,    // front right
+        width / 2, -height / 2, -depth / 2,   // back right
+        -width / 2, -height / 2, -depth / 2,  // back left
+    ]);
+
+    var indices = [
+        // Front face
+        0, 1, 2,  0, 2, 3,
+        // Back face
+        4, 7, 6,  4, 6, 5,
+        // Bottom face
+        8, 11, 10, 8, 10, 9,
+        // Right face
+        1, 5, 6,  1, 6, 2,
+        // Left face
+        0, 3, 7,  0, 7, 4
+    ];
+
+    var geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+
+    var cuboid = new THREE.Mesh(geometry, 
+        new THREE.MeshBasicMaterial({color: color, wireframe: true, side: THREE.DoubleSide}));
+    
+    //    cuboid.position.set(6, height/2, 6);
+    cuboid.position.set(6, height/2, 6);
+    scene.add(cuboid);
+
+    return cuboid;
+}
+
+
+function createObject(radius, color) {
+    'use strict';
+
+    // sphere
+    var geometry = new THREE.SphereGeometry(radius, 32, 32);
+    var material = new THREE.MeshBasicMaterial({color: color, wireframe: true});
+    var sphere = new THREE.Mesh(geometry, material);
+    // TODO: get position as a parameter
+    sphere.position.set(10, radius, 0);
+    scene.add(sphere);
+
+    return sphere;
 }
 
 //////////////////////
@@ -258,6 +327,27 @@ function createCrane() {
 //////////////////////
 function checkCollisions(){
     'use strict';
+
+    for (var i = 1; i <= 4; i++) {
+        var dedo = grua.getObjectByName('ref_bloco').getObjectByName('dedo' + i);
+        if (dedo) {
+            // get positions in world coordinates
+            var pd = dedo.getWorldPosition(new THREE.Vector3());
+            var po = object.getWorldPosition(new THREE.Vector3());
+
+            // get radius for bounding spheres
+            var rd = 1; // h_dedo TODO: how to get this value?
+            var ro = object.geometry.parameters.radius; // TODO: have object list
+
+            if ((rd + ro)**2 > (pd.x - po.x)**2 + (pd.y - po.y)**2 + (pd.z - po.z)**2) {
+                object.material.color.setHex(0xff0000); // TODO: delete this
+                return true;
+            } else {
+                object.material.color.setHex(0x0000ff); // TODO: delete this
+                return false;
+            }
+        }
+    }
 
 }
 
@@ -274,6 +364,10 @@ function handleCollisions(){
 ////////////
 function update(){
     'use strict';
+
+    if (checkCollisions()) {
+        handleCollisions();
+    }
 }
 
 /////////////
@@ -313,6 +407,8 @@ function init() {
 /////////////////////
 function animate() {
     'use strict';
+
+    update();
 
     render();
 
@@ -472,55 +568,6 @@ function p(n){ return Math.sign(-n%2 + 0.5); }
 function q(n){ return Math.sign(-2*n + 5); }
 
 function g(n){ return -p(n)*((q(n)+1)/2 * Math.PI/4 - ((q(n)-1)/2 * Math.PI/12)); }
-
-function createContainer(width, height, depth, color) {
-    'use strict';
-
-    var vertices = new Float32Array([
-        // Front face
-        -width / 2, -height / 2, depth / 2,   // bottom left
-        width / 2, -height / 2, depth / 2,    // bottom right
-        width / 2, height / 2, depth / 2,     // top right
-        -width / 2, height / 2, depth / 2,    // top left
-
-        // Back face
-        -width / 2, -height / 2, -depth / 2,  // bottom left
-        width / 2, -height / 2, -depth / 2,   // bottom right
-        width / 2, height / 2, -depth / 2,    // top right
-        -width / 2, height / 2, -depth / 2,   // top left
-
-        // Bottom face
-        -width / 2, -height / 2, depth / 2,   // front left
-        width / 2, -height / 2, depth / 2,    // front right
-        width / 2, -height / 2, -depth / 2,   // back right
-        -width / 2, -height / 2, -depth / 2,  // back left
-    ]);
-
-    var indices = [
-        // Front face
-        0, 1, 2,  0, 2, 3,
-        // Back face
-        4, 7, 6,  4, 6, 5,
-        // Bottom face
-        8, 11, 10, 8, 10, 9,
-        // Right face
-        1, 5, 6,  1, 6, 2,
-        // Left face
-        0, 3, 7,  0, 7, 4
-    ];
-
-    var geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(indices);
-
-    var cuboid = new THREE.Mesh(geometry, 
-        new THREE.MeshBasicMaterial({color: color, wireframe: true, side: THREE.DoubleSide}));
-
-    cuboid.position.set(6, height/2, 6);
-    scene.add(cuboid);
-
-    return cuboid;
-}
 
 function material(color) {
     return new THREE.MeshBasicMaterial({color: color, wireframe: true});
