@@ -39,53 +39,63 @@ function createScene() {
 function createCameras() {
     'use strict';
 
+    const aspectRatio = window.innerWidth / window.innerHeight;
+    const frustumSize = 30; // Common frustum size for a consistent zoom level
+
+    // Helper function to create orthographic cameras
+    function createOrthographicCamera(x, y, z) {
+        const camera = new THREE.OrthographicCamera(
+            -frustumSize * aspectRatio / 2, frustumSize * aspectRatio / 2,
+            frustumSize / 2, -frustumSize / 2, 1, 1000
+        );
+        camera.position.set(x, y, z);
+        camera.lookAt(scene.position);
+        return camera;
+    }
+
     // Orthographic cameras
-    var aspectRatio = window.innerWidth / window.innerHeight;
-    cameraFront = new THREE.OrthographicCamera(-15 * aspectRatio, 15 * aspectRatio, 15, -15, 1, 1000);
-    cameraFront.position.set(0, 0, 20);
-    cameraFront.lookAt(scene.position);
+    cameraFront = createOrthographicCamera(0, 0, 20);
+    cameraSide = createOrthographicCamera(20, 0, 0);
+    cameraTop = createOrthographicCamera(0, 20, 0);
+    cameraFixedOrtho = createOrthographicCamera(20, 20, 20);
 
-    cameraSide = new THREE.OrthographicCamera(-15 * aspectRatio, 15 * aspectRatio, 15, -15, 1, 1000);
-    cameraSide.position.set(20, 0, 0);
-    cameraSide.lookAt(scene.position);
-
-    cameraTop = new THREE.OrthographicCamera(-15 * aspectRatio, 15 * aspectRatio, 15, -15, 1, 1000);
-    cameraTop.position.set(0, 20, 0);
-    cameraTop.lookAt(scene.position);
-
-    // Perspective cameras
-    cameraFixedOrtho = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
-    cameraFixedOrtho.position.set(30, 30, 30);
-    cameraFixedOrtho.lookAt(scene.position);
-
+    // Perspective camera
     cameraFixedPerspective = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
-    cameraFixedPerspective.position.set(-30, 30, -30);
+    cameraFixedPerspective.position.set(20, 20, 20);
     cameraFixedPerspective.lookAt(scene.position);
 
-    // Mobile camera
-    cameraMobile = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
+    // cameraMobile = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
     // This camera will be updated in the animation loop or event handlers to follow the crane hook
 
     // Set the default camera
-    camera = cameraFixedPerspective;
+    camera = cameraFront;
 
     controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove this
     controls.update();  // TODO: remove this
 }
 
-function createCamera() {
-    'use strict';
-    camera = new THREE.PerspectiveCamera(70,
-                                         window.innerWidth / window.innerHeight,
-                                         1,
-                                         1000);
-    camera.position.x = 0;
-    camera.position.y = 15;
-    camera.position.z = 15;
-    camera.lookAt(scene.position);
+function switchCamera(newCamera) {
+    camera = newCamera;
 
-    controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove this
-    controls.update();  // TODO: remove this
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    var aspectRatio = width / height;
+
+    // Update the newly activated camera
+    if (camera.isPerspectiveCamera) {
+        camera.aspect = aspectRatio;
+    } else if (camera.isOrthographicCamera) {
+        const frustumSize = 30; // Adjust as necessary
+        camera.left = -frustumSize * aspectRatio / 2;
+        camera.right = frustumSize * aspectRatio / 2;
+        camera.top = frustumSize / 2;
+        camera.bottom = -frustumSize / 2;
+    }
+    camera.updateProjectionMatrix();
+
+    controls.dispose();
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.update();
 }
 
 /////////////////////
@@ -391,13 +401,11 @@ function init() {
     document.body.appendChild(renderer.domElement);
 
     createScene();
-
-    // createCamera();
     createCameras();
 
     render();
 
-    // window.addEventListener("resize", onResize);
+    window.addEventListener("resize", onResize);
     window.addEventListener("keydown", onKeyDown);
     // window.addEventListener("keyup", onKeyUp);
 }
@@ -420,9 +428,29 @@ function animate() {
 ////////////////////////////
 /* RESIZE WINDOW CALLBACK */
 ////////////////////////////
-function onResize() { 
+function onResize() {
     'use strict';
 
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    var aspectRatio = width / height;
+
+    renderer.setSize(width, height);
+
+    // Update the currently active camera
+    if (camera.isPerspectiveCamera) {
+        camera.aspect = aspectRatio;
+        camera.updateProjectionMatrix();
+    } else if (camera.isOrthographicCamera) {
+        const frustumSize = 30; // Assuming a default frustum size for orthographic cameras
+        camera.left = -frustumSize * aspectRatio / 2;
+        camera.right = frustumSize * aspectRatio / 2;
+        camera.top = frustumSize / 2;
+        camera.bottom = -frustumSize / 2;
+        camera.updateProjectionMatrix();
+    }
+
+    render();
 }
 
 ///////////////////////
@@ -500,24 +528,26 @@ function onKeyDown(e) {
             }
             break;
 
-        case 49: // Key "1"
-            toggleWireframe(scene);
-            camera = cameraFront;  // TODO: check this
+        case 49: // '1'
+            switchCamera(cameraFront);
             break;
         case 50: // '2'
-            camera = cameraSide;
+            switchCamera(cameraSide);
             break;
         case 51: // '3'
-            camera = cameraTop;
+            switchCamera(cameraTop);
             break;
         case 52: // '4'
-            camera = cameraFixedOrtho;
+            switchCamera(cameraFixedOrtho);
             break;
         case 53: // '5'
-            camera = cameraFixedPerspective;
+            switchCamera(cameraFixedPerspective);
             break;
-        case 54: // '6'
-            camera = cameraMobile;
+        // case 54: // '6'  // TODO: implement mobile camera
+        //     switchCamera(cameraMobile);
+        //     break;
+        case 55: // '7'
+            toggleWireframe(scene);  // TODO: check this
             break;
 
 
