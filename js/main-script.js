@@ -6,6 +6,8 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 var camera, scene, renderer, controls;
 
+var cameraFront, cameraSide, cameraTop, cameraFixedOrtho, cameraFixedPerspective, cameraMobile;
+
 var grua;
 
 //////////////////////
@@ -24,7 +26,7 @@ function createScene() {
     scene.add(new THREE.AxesHelper(10));
 
     // background color
-    scene.background = new THREE.Color(0x000000);
+    scene.background = new THREE.Color(0x000000);  // TODO: change to light colour
 
     createCrane();
     createContainer(2, 1.5, 1.5, "red");
@@ -33,6 +35,43 @@ function createScene() {
 //////////////////////
 /* CREATE CAMERA(S) */
 //////////////////////
+function createCameras() {
+    'use strict';
+
+    // Orthographic cameras
+    var aspectRatio = window.innerWidth / window.innerHeight;
+    cameraFront = new THREE.OrthographicCamera(-15 * aspectRatio, 15 * aspectRatio, 15, -15, 1, 1000);
+    cameraFront.position.set(0, 0, 20);
+    cameraFront.lookAt(scene.position);
+
+    cameraSide = new THREE.OrthographicCamera(-15 * aspectRatio, 15 * aspectRatio, 15, -15, 1, 1000);
+    cameraSide.position.set(20, 0, 0);
+    cameraSide.lookAt(scene.position);
+
+    cameraTop = new THREE.OrthographicCamera(-15 * aspectRatio, 15 * aspectRatio, 15, -15, 1, 1000);
+    cameraTop.position.set(0, 20, 0);
+    cameraTop.lookAt(scene.position);
+
+    // Perspective cameras
+    cameraFixedOrtho = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
+    cameraFixedOrtho.position.set(30, 30, 30);
+    cameraFixedOrtho.lookAt(scene.position);
+
+    cameraFixedPerspective = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
+    cameraFixedPerspective.position.set(-30, 30, -30);
+    cameraFixedPerspective.lookAt(scene.position);
+
+    // Mobile camera
+    cameraMobile = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
+    // This camera will be updated in the animation loop or event handlers to follow the crane hook
+
+    // Set the default camera
+    camera = cameraFixedPerspective;
+
+    controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove this
+    controls.update();  // TODO: remove this
+}
+
 function createCamera() {
     'use strict';
     camera = new THREE.PerspectiveCamera(70,
@@ -44,8 +83,8 @@ function createCamera() {
     camera.position.z = 15;
     camera.lookAt(scene.position);
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.update();
+    controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove this
+    controls.update();  // TODO: remove this
 }
 
 /////////////////////
@@ -188,7 +227,7 @@ function createCrane() {
             var ref_bloco = new THREE.Object3D();
             ref_bloco.name = "ref_bloco";
             ref_bloco.userData.max_y = -h_carrinho;
-            ref_bloco.userData.min_y = (h_dedo + h_bloco) -(h_base/2 + h_torre + d_torre_lanca);
+            ref_bloco.userData.min_y = (h_dedo + h_bloco) -(h_torre + d_torre_lanca);
             ref_bloco.position.y = -h_carrinho - l_cabo;
 
                 var bloco = new THREE.Mesh(new THREE.BoxGeometry(l_bloco, h_bloco, w_bloco), material("brown"));
@@ -258,7 +297,9 @@ function init() {
     document.body.appendChild(renderer.domElement);
 
     createScene();
-    createCamera();
+
+    // createCamera();
+    createCameras();
 
     render();
 
@@ -312,7 +353,6 @@ function onKeyDown(e) {
             var ref = grua.getObjectByName("ref_carrinho");
             if (ref.position.x < ref.userData.max_x)
                 ref.position.x = roundTo(ref.position.x + 0.05, 2)
-            console.log(ref.position.x);
             break;
         
         case 115: // s
@@ -320,13 +360,11 @@ function onKeyDown(e) {
             var ref = grua.getObjectByName("ref_carrinho");
             if (ref.position.x > ref.userData.min_x)
                 ref.position.x = roundTo(ref.position.x - 0.05, 2);
-            console.log(ref.position.x);
             break;
         
         case 101: // e
         case 69:  // E
             var ref = grua.getObjectByName("ref_bloco");
-            var ref_carrinho = grua.getObjectByName("ref_carrinho");
             var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
             if (ref.position.y > ref.userData.min_y) {
                 // TODO cleanup and set constant
@@ -334,7 +372,6 @@ function onKeyDown(e) {
                 cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y - 0.05/2, 4);
                 cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y + 0.05/2, 4);
             }
-            console.log(ref.position.y);
             break;
         
         case 100: // D
@@ -348,7 +385,6 @@ function onKeyDown(e) {
                 cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y + 0.05/2, 4);
                 cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y - 0.05/2, 4);
             }
-            console.log(ref.position.y);
             break;
 
         case 114: // r
@@ -367,6 +403,28 @@ function onKeyDown(e) {
                 }
             }
             break;
+
+        case 49: // Key "1"
+            toggleWireframe(scene);
+            camera = cameraFront;  // TODO: check this
+            break;
+        case 50: // '2'
+            camera = cameraSide;
+            break;
+        case 51: // '3'
+            camera = cameraTop;
+            break;
+        case 52: // '4'
+            camera = cameraFixedOrtho;
+            break;
+        case 53: // '5'
+            camera = cameraFixedPerspective;
+            break;
+        case 54: // '6'
+            camera = cameraMobile;
+            break;
+
+
     }
 }
 
@@ -389,10 +447,10 @@ function createTetrahedron(edgeLength, verticalHeight, color) {
     
     // Define the vertices of the tetrahedron
     var vertices = new Float32Array([
-        -edgeLength / 2, 0, base_height / 3, // vertex 0
-        edgeLength / 2, 0, base_height / 3,  // vertex 1
-        0, 0, -2 * base_height / 3,         // vertex 2
-        0, verticalHeight, 0                // vertex 3
+        -base_height / 3, 0, -edgeLength / 2,   // vertex 0
+        -base_height / 3, 0, edgeLength / 2,    // vertex 1
+        2 * base_height / 3, 0, 0,              // vertex 2
+        0, verticalHeight, 0                    // vertex 3
     ]);
 
     var geometry = new THREE.BufferGeometry();
@@ -442,9 +500,9 @@ function createContainer(width, height, depth, color) {
         // Front face
         0, 1, 2,  0, 2, 3,
         // Back face
-        4, 6, 5,  4, 7, 6,
+        4, 7, 6,  4, 6, 5,
         // Bottom face
-        8, 9, 10, 8, 10, 11,
+        8, 11, 10, 8, 10, 9,
         // Right face
         1, 5, 6,  1, 6, 2,
         // Left face
@@ -455,7 +513,8 @@ function createContainer(width, height, depth, color) {
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex(indices);
 
-    var cuboid = new THREE.Mesh(geometry, material(color));
+    var cuboid = new THREE.Mesh(geometry, 
+        new THREE.MeshBasicMaterial({color: color, wireframe: true, side: THREE.DoubleSide}));
 
     cuboid.position.set(6, height/2, 6);
     scene.add(cuboid);
@@ -470,6 +529,15 @@ function material(color) {
 function roundTo(number, decimalPlaces) {
     let factor = Math.pow(10, decimalPlaces);
     return Math.round(number * factor) / factor;
+}
+
+function toggleWireframe(object) {
+    'use strict';
+    object.traverse(function (child) {
+        if (child instanceof THREE.Mesh) {
+            child.material.wireframe = !child.material.wireframe;
+        }
+    });
 }
 
 init();
