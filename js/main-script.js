@@ -44,14 +44,21 @@ const G = Object.freeze({ // Geometry constants
     carrinho: { l: 1, h: 0.5, w: 1 },
     cabo: { r: 0.05, l: 2 },
     bloco: { l: 0.75, h: 0.75, w: 0.75 },
-    dedo: { h: 1 }
+    dedo: { l: 0.25, h: 1 }
 });
+
+var apotemaBase = Math.sqrt(3) * G.dedo.l / 2;
+var hipotenusa = Math.sqrt((apotemaBase/2)**2 + G.dedo.h**2);
+var angulo1 = Math.asin((apotemaBase/2) / hipotenusa);
+var d_centro_baseDedo = Math.sqrt((G.bloco.l/2)**2 + (G.bloco.w/2)**2) * (2/3) - apotemaBase/2;
+var angulo2 = Math.asin((d_centro_baseDedo) / hipotenusa);
+var maxDedo = angulo1 + angulo2;
 
 const DOF = Object.freeze({ // Degrees of freedom
     eixo: { vel: [0, 0], step: Math.PI/16 },
     carrinho: { vel: [0, 0], step: 0.5, min: G.torre.l/2 + G.carrinho.l/2, max: G.torre.l/2 + G.lanca.l - G.carrinho.l/2 },
     bloco: { vel: [0, 0], step: 0.75, min: (G.dedo.h + G.bloco.h) - (G.torre.h + G.lanca.d), max: -G.carrinho.h },
-    dedo: { vel: [0, 0], step: Math.PI/16, min: -Math.PI/4, max: Math.PI/9, cur_angle: 0 }  // TODO: adjust min and max values
+    dedo: { vel: [0, 0], step: Math.PI/8, min: -Math.PI/4, max: maxDedo, cur_angle: 0 }
 });
 
 const cameras = {
@@ -247,7 +254,7 @@ function createRefBloco() {
     cameras.mobile.lookAt(new THREE.Vector3(0, -1, 0)); // Ensure this camera looks downwards
 
     for (var i = 1; i <= 4; i++) {
-        var dedo = new THREE.Mesh(createTetrahedronGeom(0.25, -G.dedo.h), M.dedo);
+        var dedo = new THREE.Mesh(createTetrahedronGeom(G.dedo.l, -G.dedo.h), M.dedo);
         dedo.rotateY(g(i));
         dedo.name = 'dedo' + i;
         dedo.position.set(p(i) * G.bloco.l * (1/3), -G.bloco.h, q(i) * G.bloco.w * (1/3));
