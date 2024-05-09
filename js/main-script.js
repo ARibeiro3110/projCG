@@ -177,6 +177,7 @@ function createRefEixo() {
     components.portaLancaBase.position.set(0, G.portaLancaBase.h/2, 0);
 
     components.portaLancaTopo.position.set(0, G.portaLancaBase.h, 0);
+    components.portaLancaTopo.rotateY(-Math.PI/2); // TODO: alterar posição
 
     components.cabine.position.set(0, G.cabine.h/2 + G.cabine.d, G.torre.l/2 + G.cabine.w/2);
 
@@ -239,7 +240,7 @@ function createRefBloco() {
 
     for (var i = 1; i <= 4; i++) {
         var dedo = createTetrahedron(0.25, -G.dedo.h, color(i));
-        dedo.rotateY(g(i));  // FIXME: PROBLEMS
+        dedo.rotateY(g(i));
         dedo.name = 'dedo' + i;
         dedo.position.set(p(i) * G.bloco.l * (1/3), -G.bloco.h, q(i) * G.bloco.w * (1/3));
         ref_bloco.add(dedo);
@@ -504,7 +505,7 @@ function onKeyDown(e) {
                     var dedo = ref.getObjectByName('dedo' + i);
                     // TODO: test rotation limits
                     if (dedo) {
-                        var axis = new THREE.Vector3((i <= 2 ? 1 : -1), 0, (i <= 2 ? -p(i)*q(i) : 0));  // TODO: check this
+                        var axis = new THREE.Vector3(-1, 0, 0);
                         axis.normalize();
                         dedo.rotateOnAxis(axis, angle);
                     }
@@ -557,10 +558,10 @@ function createTetrahedron(edgeLength, verticalHeight, color) {
 
     // Define the vertices of the tetrahedron
     var vertices = new Float32Array([
-        -base_height / 3, 0, -edgeLength / 2,   // vertex 0
-        -base_height / 3, 0, edgeLength / 2,    // vertex 1
-        2 * base_height / 3, 0, 0,              // vertex 2
-        0, verticalHeight, 0                    // vertex 3
+        -edgeLength / 2, 0, base_height / 3, // vertex 0
+        edgeLength / 2, 0, base_height / 3,  // vertex 1
+        0, 0, -2 * base_height / 3,         // vertex 2
+        0, verticalHeight, 0                // vertex 3
     ]);
 
     var geometry = new THREE.BufferGeometry();
@@ -581,7 +582,7 @@ function p(n){ return Math.sign(-n%2 + 0.5); }
 
 function q(n){ return Math.sign(-2*n + 5); }
 
-function g(n){ return -p(n)*((q(n)+1)/2 * Math.PI/12 - (q(n)-1)/2 * Math.PI/4);}
+function g(n){ return -p(n) * (1/4 + (q(n)+1)/4) * Math.PI;}
 
 function material(color) {
     return new THREE.MeshBasicMaterial({color: color, wireframe: true});
