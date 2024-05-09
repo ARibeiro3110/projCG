@@ -10,6 +10,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 var camera, scene, renderer, controls;
 var cameraFront, cameraSide, cameraTop, cameraFixedOrtho, cameraFixedPerspective, cameraMobile;
 var grua, container, object;
+var clock;
 
 //////////////////////
 /* GLOBAL CONSTANTS */
@@ -17,12 +18,12 @@ var grua, container, object;
 const G = Object.freeze({ // Geometry constants
     base: { r: 1.5, h: 0.5 },
     torre: { l: 1, h: 7, w: 1 },
-    portaLancaBase: { l: 1, h: 3, w: 1 },
+    portaLancaBase: { l: 1, h: 2, w: 1 },
     portaLancaTopo: { h: 2 },
     cabine: { l: 1, h: 1, w: 0.5, d: 0.5 },
     lanca: { l: 10, h: 1, w: 1, d: 2 },
     contraLanca: { l: 4, h: 1, w: 1 },
-    contrapeso: { l: 1, h: 2, w: 1, d: 2 },
+    contrapeso: { l: 1, h: 1, w: 1, d: 2 },
     tirante: { r: 0.01, d: 5.5 },
     carrinho: { l: 1, h: 0.5, w: 1 },
     cabo: { r: 0.05, l: 2 },
@@ -31,10 +32,10 @@ const G = Object.freeze({ // Geometry constants
 });
 
 const DOF = Object.freeze({ // Degrees of freedom
-    eixo: { step: Math.PI/360 },
-    carrinho: { step: 0.05, min: G.torre.l/2 + G.carrinho.l/2, max: G.torre.l/2 + G.lanca.l - G.carrinho.l/2 },
-    bloco: { step: 0.05, min: (G.dedo.h + G.bloco.h) - (G.torre.h + G.lanca.d), max: -G.carrinho.h },
-    dedo: { step: Math.PI/200, min: -Math.PI/4, max: Math.PI/4 }
+    eixo: { vel: [0, 0], step: Math.PI/16 },
+    carrinho: { vel: [0, 0], step: 0.5, min: G.torre.l/2 + G.carrinho.l/2, max: G.torre.l/2 + G.lanca.l - G.carrinho.l/2 },
+    bloco: { vel: [0, 0], step: 0.75, min: (G.dedo.h + G.bloco.h) - (G.torre.h + G.lanca.d), max: -G.carrinho.h },
+    dedo: { vel: [0, 0], step: Math.PI/16, min: -Math.PI/4, max: Math.PI/9, cur_angle: 0 }  // TODO: adjust min and max values
 });
 
 /////////////////////
@@ -48,7 +49,7 @@ function createScene() {
     scene.add(new THREE.AxesHelper(10));
 
     // background color
-    scene.background = new THREE.Color(0x000000);  // TODO: change to light colour
+    scene.background = new THREE.Color(0xB6D0E2);  // TODO: change to light colour
 
     grua = createCrane();
     container = createContainer(2, 1.5, 1.5, "red");
@@ -176,7 +177,7 @@ function createRefEixo() {
 
     components.portaLancaBase.position.set(0, G.portaLancaBase.h/2, 0);
 
-    components.portaLancaTopo.position.set(0, G.portaLancaBase.h, 0);
+    components.portaLancaTopo.position.set(0, G.portaLancaBase.h + G.lanca.h, 0);
     components.portaLancaTopo.rotateY(-Math.PI/2); // TODO: alterar posição
 
     components.cabine.position.set(0, G.cabine.h/2 + G.cabine.d, G.torre.l/2 + G.cabine.w/2);
@@ -188,11 +189,11 @@ function createRefEixo() {
     components.contrapeso.position.set(-G.contrapeso.d - G.contrapeso.l/2, G.contrapeso.h/2 + G.contraLanca.h, 0);
 
     components.tiranteLanca.rotation.z = Math.atan(G.tirante.d / G.portaLancaTopo.h);
-    components.tiranteLanca.position.set(G.tirante.d/2, G.portaLancaBase.h + G.portaLancaTopo.h/2, 0);
+    components.tiranteLanca.position.set(G.tirante.d/2, G.portaLancaBase.h + G.portaLancaTopo.h/2 + G.lanca.h, 0);
 
     components.tiranteContraLanca1.rotation.z = -Math.atan(G.contrapeso.d / (G.portaLancaTopo.h + G.contraLanca.h));
     components.tiranteContraLanca1.rotation.y = Math.atan(G.contraLanca.w/2 / G.contrapeso.d);
-    components.tiranteContraLanca1.position.set(-G.contrapeso.d/2, G.portaLancaBase.h + G.portaLancaTopo.h - (G.portaLancaTopo.h+G.contraLanca.h)/2, G.contraLanca.w/4);
+    components.tiranteContraLanca1.position.set(-G.contrapeso.d/2, G.portaLancaBase.h + G.portaLancaTopo.h - (G.portaLancaTopo.h+G.contraLanca.h)/2 + G.lanca.h, G.contraLanca.w/4);
 
     components.tiranteContraLanca2 = components.tiranteContraLanca1.clone();
     components.tiranteContraLanca2.position.z *= -1;
@@ -356,11 +357,67 @@ function handleCollisions(){
 ////////////
 /* UPDATE */
 ////////////
-function update(){
+function update(delta_t){
     'use strict';
 
-    if (checkCollisions()) {
-        handleCollisions();
+    checkCollisions();
+
+    // Update degrees of freedom
+    var ref_eixo = grua.getObjectByName("ref_eixo");
+    var ref_carrinho = grua.getObjectByName("ref_carrinho");
+    var ref_bloco = grua.getObjectByName("ref_bloco");
+
+    var vel;
+
+    // Update eixo
+    vel = DOF.eixo.vel[0] + DOF.eixo.vel[1]; // Get velocity direction
+    vel = vel * DOF.eixo.step * delta_t; // Scale up velocity
+    ref_eixo.rotation.y += vel;
+
+    // Update carrinho
+    vel = DOF.carrinho.vel[0] + DOF.carrinho.vel[1];
+    vel = vel * DOF.carrinho.step * delta_t;
+    
+    var pos = ref_carrinho.position;
+    if (pos.x + vel > DOF.carrinho.min && pos.x + vel < DOF.carrinho.max) {
+        pos.x += vel;
+    }
+
+    // Update bloco
+    vel = DOF.bloco.vel[0] + DOF.bloco.vel[1];
+    vel = vel * DOF.bloco.step * delta_t;
+
+    var pos = ref_bloco.position;
+    if (pos.y + vel > DOF.bloco.min && pos.y + vel < DOF.bloco.max) {
+        pos.y += vel;
+        
+        // Extend cable
+        var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
+        cabo_de_aco.position.y += vel/2;
+        cabo_de_aco.scale.y -= vel/2;
+    }
+
+    // Update dedos
+    vel = DOF.dedo.vel[0] + DOF.dedo.vel[1];
+    var angle = vel * DOF.dedo.step * delta_t;
+
+    var rotated = false;
+
+    var axis = new THREE.Vector3(-1, 0, 0);
+    axis.normalize();
+
+    if (DOF.dedo.cur_angle + angle > DOF.dedo.min && DOF.dedo.cur_angle + angle < DOF.dedo.max) {
+        for (var i = 1; i <= 4; i++) {
+            var dedo = ref_bloco.getObjectByName('dedo' + i);
+            if (dedo) {
+                dedo.rotateOnAxis(axis, angle);
+            }
+        }
+        rotated = true;
+    }
+
+    if (rotated) {
+        DOF.dedo.cur_angle += angle;
     }
 }
 
@@ -384,6 +441,8 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    clock = new THREE.Clock();
+
     createScene();
     createCameras();
 
@@ -391,7 +450,7 @@ function init() {
 
     window.addEventListener("resize", onResize);
     window.addEventListener("keydown", onKeyDown);
-    // window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("keyup", onKeyUp);
 }
 
 /////////////////////
@@ -399,8 +458,10 @@ function init() {
 /////////////////////
 function animate() {
     'use strict';
+    
+    var delta_t = clock.getDelta();
 
-    update();
+    update(delta_t);
 
     render();
 
@@ -447,72 +508,43 @@ function onKeyDown(e) {
         // TODO: aplicar mudanças sobre graus de liberdade em vez de atributos do referencial
 
         case 113: // q
-        case 81:  // Q
-            grua.getObjectByName("ref_eixo").rotation.y += DOF.eixo.step;
+        case 81:  // Q   
+            DOF.eixo.vel[0] = -1; // rotate in the negative direction
             break;
 
         case 97:  // a
         case 65:  // A
-            grua.getObjectByName("ref_eixo").rotation.y -= DOF.eixo.step;
+            DOF.eixo.vel[1] = 1; // rotate in the positive direction
             break;
 
         case 119: // w
         case 87:  // W
-            var ref = grua.getObjectByName("ref_carrinho");
-            if (ref.position.x < DOF.carrinho.max)
-                ref.position.x = roundTo(ref.position.x + DOF.carrinho.step, 4);
+            DOF.carrinho.vel[1] = 1; // go forward
             break;
 
         case 115: // s
         case 83:  // S
-            var ref = grua.getObjectByName("ref_carrinho");
-            if (ref.position.x > DOF.carrinho.min)
-                ref.position.x = roundTo(ref.position.x - DOF.carrinho.step, 4);
+            DOF.carrinho.vel[0] = -1; // go backward
             break;
 
         case 101: // e
         case 69:  // E
-            var ref = grua.getObjectByName("ref_bloco");
-            var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
-            if (ref.position.y > DOF.bloco.min) {
-                ref.position.y = roundTo(ref.position.y - DOF.bloco.step, 4);
-                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y - DOF.bloco.step/2, 4);
-                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y + DOF.bloco.step/2, 4);
-            }
+            DOF.bloco.vel[0] = -1; // go down
             break;
 
         case 100: // D
         case 68:  // d
-            var ref = grua.getObjectByName("ref_bloco");
-            var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
-            if (ref.position.y < DOF.bloco.max) {
-                // TODO cleanup and set constant
-                ref.position.y = roundTo(ref.position.y + DOF.bloco.step, 4);
-                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y + DOF.bloco.step/2, 4);
-                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y - DOF.bloco.step/2, 4);
-            }
+            DOF.bloco.vel[1] = 1; // go up
             break;
         
         case 114: // r
         case 82:  // R
+            DOF.dedo.vel[1] = 1; // rotate in the positive direction
+            break;
         case 102: // f
         case 70:  // F
-            var ref = grua.getObjectByName("ref_bloco");
-            if (ref) {
-                var angle = DOF.dedo.step * ((e.keyCode == 114 || e.keyCode == 82) ? -1 : 1); // TODO: check this
-
-                for (var i = 1; i <= 4; i++) {
-                    var dedo = ref.getObjectByName('dedo' + i);
-                    // TODO: test rotation limits
-                    if (dedo) {
-                        var axis = new THREE.Vector3(-1, 0, 0);
-                        axis.normalize();
-                        dedo.rotateOnAxis(axis, angle);
-                    }
-                }
-            }
+            DOF.dedo.vel[0] = -1; // rotate in the negative direction
             break;
-
         case 49: // '1'
             switchCamera(cameraFront);
             break;
@@ -544,12 +576,53 @@ function onKeyDown(e) {
 /////////////////////
 function onKeyUp(e){
     'use strict';
+
+    switch (e.keyCode) {
+        case 113: // q
+        case 81:  // Q
+            DOF.eixo.vel[0] = 0;
+            break;
+
+        case 97:  // a
+        case 65:  // A
+            DOF.eixo.vel[1] = 0;
+            break;
+
+        case 119: // w
+        case 87:  // W
+            DOF.carrinho.vel[1] = 0;
+            break;
+
+        case 115: // s
+        case 83:  // S
+            DOF.carrinho.vel[0] = 0;
+            break;
+
+        case 101: // e
+        case 69:  // E
+            DOF.bloco.vel[0] = 0;
+            break;
+
+        case 100: // D
+        case 68:  // d
+            DOF.bloco.vel[1] = 0;
+            break;
+        
+        case 114: // r
+        case 82:  // R
+            DOF.dedo.vel[1] = 0;
+            break;
+        
+        case 102: // f
+        case 70:  // F
+            DOF.dedo.vel[0] = 0;
+            break;
+    }
 }
 
 ///////////
 /* UTILS */
 ///////////
-
 function createTetrahedron(edgeLength, verticalHeight, color) {
     'use strict';
 
