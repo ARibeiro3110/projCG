@@ -4,16 +4,38 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import * as Stats from 'three/addons/libs/stats.module.js';
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
-var camera, scene, renderer, controls;
-
-var cameraFront, cameraSide, cameraTop, cameraFixedOrtho, cameraFixedPerspective, cameraMobile;
-
-var grua, container, object;
-
 //////////////////////
 /* GLOBAL VARIABLES */
 //////////////////////
+var camera, scene, renderer, controls;
+var cameraFront, cameraSide, cameraTop, cameraFixedOrtho, cameraFixedPerspective, cameraMobile;
+var grua, container, object;
 
+//////////////////////
+/* GLOBAL CONSTANTS */
+//////////////////////
+const G = Object.freeze({ // Geometry constants
+    base: { r: 1.5, h: 0.5 },
+    torre: { l: 1, h: 7, w: 1 },
+    portaLancaBase: { l: 1, h: 3, w: 1 },
+    portaLancaTopo: { h: 2 },
+    cabine: { l: 1, h: 1, w: 0.5, d: 0.5 },
+    lanca: { l: 10, h: 1, w: 1, d: 2 },
+    contraLanca: { l: 4, h: 1, w: 1 },
+    contrapeso: { l: 1, h: 2, w: 1, d: 2 },
+    tirante: { r: 0.01, d: 5.5 },
+    carrinho: { l: 1, h: 0.5, w: 1 },
+    cabo: { r: 0.05, l: 2 },
+    bloco: { l: 0.75, h: 0.75, w: 0.75 },
+    dedo: { h: 1 }
+});
+
+const DOF = Object.freeze({ // Degrees of freedom
+    eixo: { step: Math.PI/360 },
+    carrinho: { step: 0.05, min: G.torre.l/2 + G.carrinho.l/2, max: G.torre.l/2 + G.lanca.l - G.carrinho.l/2 },
+    bloco: { step: 0.05, min: (G.dedo.h + G.bloco.h) - (G.torre.h + G.lanca.d), max: -G.carrinho.h },
+    dedo: { step: Math.PI/200, min: -Math.PI/4, max: Math.PI/4 }
+});
 
 /////////////////////
 /* CREATE SCENE(S) */
@@ -114,158 +136,117 @@ function createLight() {
 function createCrane() {
     'use strict';
 
-    var grua = new THREE.Object3D();
-    
-    var r_base = 1.5;
-    var h_base = 0.5;
-    
-    var l_torre = 1;
-    var h_torre = 7;
-    var w_torre = l_torre;
-    
-    var l_portaLancaBase = 1;
-    var h_portaLancaBase = 3;
-    var w_portaLancaBase = l_portaLancaBase;
+    var ref_bloco = createRefBloco();
+    var ref_carrinho = createRefCarrinho().add(ref_bloco);
+    var ref_eixo = createRefEixo().add(ref_carrinho);
+    var grua = (new THREE.Object3D()).add(ref_eixo);
 
-    var h_portaLancaTopo = 2;
-    
-    var l_cabine = 1;
-    var h_cabine = 1;
-    var w_cabine = 0.5;
-    var d_torre_cabine = 0.5;
-
-    var l_lanca = 10;
-    var h_lanca = 1;
-    var w_lanca = h_lanca;
-    var d_torre_lanca = 2;
-    
-    var l_contraLanca = 4;
-    var h_contraLanca = 1;
-    var w_contraLanca = 1;
-
-    var l_contrapeso = 1;
-    var h_contrapeso = 2;
-    var w_contrapeso = 1;
-    var d_portaLanca_contrapeso = 2;
-
-    var r_tirante = 0.01;
-    var d_torre_extremoTiranteLanca = 5.5;
-    var l_tiranteLanca = Math.sqrt(h_portaLancaTopo**2 + d_torre_extremoTiranteLanca**2);
-    var l_tiranteContraLanca = Math.sqrt((h_portaLancaTopo+h_contraLanca)**2 + d_portaLanca_contrapeso**2);
-
-    var l_carrinho = 1;
-    var h_carrinho = 0.5;
-    var w_carrinho = 1;
-
-    var r_cabo = 0.05;
-    var l_cabo = 2;
-
-    var l_bloco = 0.75;
-    var h_bloco = 0.75;
-    var w_bloco = 0.75;
-    
-    var h_dedo = 1;
-
-    // add white plane in y = -h_base/2
-    var plane = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshBasicMaterial({color: "white", wireframe: false}));
-    plane.rotation.x = -Math.PI/2;
-    plane.position.y = 0;
-
-    var base = new THREE.Mesh(new THREE.CylinderGeometry(r_base, r_base, h_base), material("green"));
-    var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(l_torre, h_torre, w_torre), material("blue"));
-    torreMetalica.position.set(0, h_base/2 + h_torre/2, 0);
-
-    var ref_eixo = new THREE.Object3D();
-    ref_eixo.name = "ref_eixo";
-    ref_eixo.position.set(0, h_base/2 + h_torre, 0);
-
-        var portaLancaBase = new THREE.Mesh(new THREE.BoxGeometry(l_portaLancaBase, h_portaLancaBase, w_portaLancaBase), material("purple"));
-        portaLancaBase.position.y = h_portaLancaBase/2;
-        ref_eixo.add(portaLancaBase);
-
-        var portaLancaTopo = createTetrahedron(1, h_portaLancaTopo, "red");
-        portaLancaTopo.position.y = h_portaLancaBase;
-        ref_eixo.add(portaLancaTopo);
-
-        var cabine = new THREE.Mesh(new THREE.BoxGeometry(l_cabine, h_cabine, w_cabine), material("yellow"));
-        cabine.position.set(0, h_cabine/2 + d_torre_cabine, l_torre/2 + w_cabine/2);
-        ref_eixo.add(cabine);
-    
-        var lanca = new THREE.Mesh(new THREE.BoxGeometry(l_lanca, h_lanca, w_lanca), material("orange"));
-        lanca.position.set(l_lanca/2 + l_portaLancaBase/2, h_lanca/2 + d_torre_lanca, 0);
-        ref_eixo.add(lanca);
-
-        var contraLanca = new THREE.Mesh(new THREE.BoxGeometry(l_contraLanca, h_contraLanca, w_contraLanca), material("blue"));
-        contraLanca.position.set(-l_contraLanca/2 + l_portaLancaBase/2, h_contraLanca/2 + d_torre_lanca, 0);
-        ref_eixo.add(contraLanca);
-
-        var contrapeso = new THREE.Mesh(new THREE.BoxGeometry(l_contrapeso, h_contrapeso, w_contrapeso), material("red"));
-        contrapeso.position.set(-d_portaLanca_contrapeso - l_contrapeso/2, h_contrapeso/2 + h_contraLanca, 0);
-        ref_eixo.add(contrapeso);
-
-        var tiranteLanca = new THREE.Mesh(new THREE.CylinderGeometry(r_tirante, r_tirante, l_tiranteLanca), material("green"));
-        tiranteLanca.rotation.z = Math.atan(d_torre_extremoTiranteLanca / h_portaLancaTopo);
-        tiranteLanca.position.set(d_torre_extremoTiranteLanca/2, h_portaLancaBase + h_portaLancaTopo/2, 0);
-        ref_eixo.add(tiranteLanca);
-        
-        var tiranteContraLanca1 = new THREE.Mesh(new THREE.CylinderGeometry(r_tirante, r_tirante, l_tiranteContraLanca), material("green"));
-        tiranteContraLanca1.rotation.z = -Math.atan(d_portaLanca_contrapeso / (h_portaLancaTopo + h_contraLanca));
-        tiranteContraLanca1.rotation.y = Math.atan(w_contraLanca/2 / d_portaLanca_contrapeso)
-        tiranteContraLanca1.position.set(-d_portaLanca_contrapeso/2, h_portaLancaBase + h_portaLancaTopo - (h_portaLancaTopo+h_contraLanca)/2, w_contraLanca/4);
-        ref_eixo.add(tiranteContraLanca1);
-
-        var tiranteContraLanca2 = new THREE.Mesh(new THREE.CylinderGeometry(r_tirante, r_tirante, l_tiranteContraLanca), material("green"));
-        tiranteContraLanca2.rotation.z = -Math.atan(d_portaLanca_contrapeso / (h_portaLancaTopo + h_contraLanca));
-        tiranteContraLanca2.rotation.y = -Math.atan(w_contraLanca/2 / d_portaLanca_contrapeso)
-        tiranteContraLanca2.position.set(-d_portaLanca_contrapeso/2, h_portaLancaBase + h_portaLancaTopo/2 - h_contraLanca/2, -w_contraLanca/4);
-        ref_eixo.add(tiranteContraLanca2);
-
-        var ref_carrinho = new THREE.Object3D();
-        ref_carrinho.name = "ref_carrinho";
-        ref_carrinho.userData.max_x = l_torre/2 + l_lanca - l_carrinho/2;
-        ref_carrinho.userData.min_x = l_torre/2 + l_carrinho/2;
-        ref_carrinho.position.set(ref_carrinho.userData.max_x, d_torre_lanca, 0); // TODO: alterar beta
-        
-            var carrinho = new THREE.Mesh(new THREE.BoxGeometry(l_carrinho, h_carrinho, w_carrinho), material("pink"));
-            carrinho.position.y = -h_carrinho/2;
-            ref_carrinho.add(carrinho); 
-
-            var cabo_de_aco = new THREE.Mesh(new THREE.CylinderGeometry(r_cabo, r_cabo, l_cabo), material("green"));
-            cabo_de_aco.name = "cabo_de_aco";
-            cabo_de_aco.position.y = -h_carrinho - l_cabo/2;
-            ref_carrinho.add(cabo_de_aco);
-
-            var ref_bloco = new THREE.Object3D();
-            ref_bloco.name = "ref_bloco";
-            ref_bloco.userData.max_y = -h_carrinho;
-            ref_bloco.userData.min_y = (h_dedo + h_bloco) -(h_torre + d_torre_lanca);
-            ref_bloco.position.y = -h_carrinho - l_cabo;
-
-                var bloco = new THREE.Mesh(new THREE.BoxGeometry(l_bloco, h_bloco, w_bloco), material("brown"));
-                bloco.position.y = -h_bloco/2;
-                ref_bloco.add(bloco);
-
-                for (var i = 1; i <= 4; i++) {
-                    var dedo = createTetrahedron(0.25, -h_dedo, "yellow");
-                    // TODO: add g(i) rotation
-                    dedo.name = 'dedo' + i;
-                    dedo.position.set(p(i) * l_bloco / 4, -h_bloco, q(i) * l_bloco / 4); // FIXME: w_bloco
-                    ref_bloco.add(dedo);
-                }
-
+    // Create base
+    var base = new THREE.Mesh(new THREE.CylinderGeometry(G.base.r, G.base.r, G.base.h), material("green"));
     grua.add(base);
+
+    // Create torre metálica
+    var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(G.torre.l, G.torre.h, G.torre.w), material("blue"));
+    torreMetalica.position.set(0, G.base.h/2 + G.torre.h/2, 0);
     grua.add(torreMetalica);
-    grua.add(ref_eixo);
-    grua.add(plane);
-    
-    ref_eixo.add(ref_carrinho);
-    ref_carrinho.add(ref_bloco);
 
     scene.add(grua);
 
     return grua;
 }
 
+function createRefEixo() {
+    'use strict';
+
+    var ref_eixo = new THREE.Object3D();
+    ref_eixo.name = "ref_eixo";
+    ref_eixo.position.set(0, G.base.h/2 + G.torre.h, 0);
+
+    var components = {
+        portaLancaBase: new THREE.Mesh(new THREE.BoxGeometry(G.portaLancaBase.l, G.portaLancaBase.h, G.portaLancaBase.w), material("purple")),
+        portaLancaTopo: createTetrahedron(1, G.portaLancaTopo.h, "red"),
+        cabine: new THREE.Mesh(new THREE.BoxGeometry(G.cabine.l, G.cabine.h, G.cabine.w), material("yellow")),
+        lanca: new THREE.Mesh(new THREE.BoxGeometry(G.lanca.l, G.lanca.h, G.lanca.w), material("orange")),
+        contraLanca: new THREE.Mesh(new THREE.BoxGeometry(G.contraLanca.l, G.contraLanca.h, G.contraLanca.w), material("blue")),
+        contrapeso: new THREE.Mesh(new THREE.BoxGeometry(G.contrapeso.l, G.contrapeso.h, G.contrapeso.w), material("red")),
+        tiranteLanca: new THREE.Mesh(new THREE.CylinderGeometry(G.tirante.r, G.tirante.r, Math.sqrt(G.portaLancaTopo.h**2 + G.tirante.d**2)), material("green")),
+        tiranteContraLanca1: new THREE.Mesh(new THREE.CylinderGeometry(G.tirante.r, G.tirante.r, Math.sqrt((G.portaLancaTopo.h+G.contraLanca.h)**2 + G.contrapeso.d**2)), material("green")),
+        tiranteContraLanca2: undefined // to be defined later
+    };
+
+    components.portaLancaBase.position.set(0, G.portaLancaBase.h/2, 0);
+
+    components.portaLancaTopo.position.set(0, G.portaLancaBase.h, 0);
+
+    components.cabine.position.set(0, G.cabine.h/2 + G.cabine.d, G.torre.l/2 + G.cabine.w/2);
+
+    components.lanca.position.set(G.lanca.l/2 + G.portaLancaBase.l/2, G.lanca.h/2 + G.lanca.d, 0);
+
+    components.contraLanca.position.set(-G.contraLanca.l/2 + G.portaLancaBase.l/2, G.contraLanca.h/2 + G.lanca.d, 0);
+
+    components.contrapeso.position.set(-G.contrapeso.d - G.contrapeso.l/2, G.contrapeso.h/2 + G.contraLanca.h, 0);
+
+    components.tiranteLanca.rotation.z = Math.atan(G.tirante.d / G.portaLancaTopo.h);
+    components.tiranteLanca.position.set(G.tirante.d/2, G.portaLancaBase.h + G.portaLancaTopo.h/2, 0);
+
+    components.tiranteContraLanca1.rotation.z = -Math.atan(G.contrapeso.d / (G.portaLancaTopo.h + G.contraLanca.h));
+    components.tiranteContraLanca1.rotation.y = Math.atan(G.contraLanca.w/2 / G.contrapeso.d);
+    components.tiranteContraLanca1.position.set(-G.contrapeso.d/2, G.portaLancaBase.h + G.portaLancaTopo.h - (G.portaLancaTopo.h+G.contraLanca.h)/2, G.contraLanca.w/4);
+
+    components.tiranteContraLanca2 = components.tiranteContraLanca1.clone();
+    components.tiranteContraLanca2.position.z *= -1;
+    components.tiranteContraLanca2.rotation.y *= -1;
+
+    for (var key in components)
+        ref_eixo.add(components[key]);
+
+    return ref_eixo;
+}
+
+function createRefCarrinho() {
+    'use strict';
+
+    var ref_carrinho = new THREE.Object3D();
+    ref_carrinho.name = "ref_carrinho";
+    ref_carrinho.position.set(DOF.carrinho.max, G.lanca.d, 0);
+
+    var components = {
+        carrinho: new THREE.Mesh(new THREE.BoxGeometry(G.carrinho.l, G.carrinho.h, G.carrinho.w), material("pink")),
+        cabo_de_aco: new THREE.Mesh(new THREE.CylinderGeometry(G.cabo.r, G.cabo.r, G.cabo.l), material("green"))
+    };
+
+    components.carrinho.position.set(0, -G.carrinho.h/2, 0);
+
+    components.cabo_de_aco.name = "cabo_de_aco";
+    components.cabo_de_aco.position.set(0, -G.carrinho.h - G.cabo.l/2, 0);
+
+    for (var key in components)
+        ref_carrinho.add(components[key]);
+
+    return ref_carrinho;
+}
+
+function createRefBloco() {
+    'use strict';
+
+    var ref_bloco = new THREE.Object3D();
+    ref_bloco.name = "ref_bloco";
+    ref_bloco.position.set(0, -G.carrinho.h - G.cabo.l, 0);
+
+    var bloco = new THREE.Mesh(new THREE.BoxGeometry(G.bloco.l, G.bloco.h, G.bloco.w), material("brown"));
+    bloco.position.set(0, -G.bloco.h/2, 0);
+    ref_bloco.add(bloco);
+
+    for (var i = 1; i <= 4; i++) {
+        var dedo = createTetrahedron(0.25, -G.dedo.h, color(i));
+        dedo.rotateY(g(i));  // FIXME: PROBLEMS
+        dedo.name = 'dedo' + i;
+        dedo.position.set(p(i) * G.bloco.l * (1/3), -G.bloco.h, q(i) * G.bloco.w * (1/3));
+        ref_bloco.add(dedo);
+    }
+
+    return ref_bloco;
+}
 
 function createContainer(width, height, depth, color) {
     'use strict';
@@ -307,9 +288,9 @@ function createContainer(width, height, depth, color) {
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex(indices);
 
-    var cuboid = new THREE.Mesh(geometry, 
+    var cuboid = new THREE.Mesh(geometry,
         new THREE.MeshBasicMaterial({color: color, wireframe: true, side: THREE.DoubleSide}));
-    
+
     //    cuboid.position.set(6, height/2, 6);
     cuboid.position.set(6, height/2, 6);
     scene.add(cuboid);
@@ -323,8 +304,7 @@ function createObject(radius, color) {
 
     // sphere
     var geometry = new THREE.SphereGeometry(radius, 32, 32);
-    var material = new THREE.MeshBasicMaterial({color: color, wireframe: true});
-    var sphere = new THREE.Mesh(geometry, material);
+    var sphere = new THREE.Mesh(geometry, material(color));
     // TODO: get position as a parameter
     sphere.position.set(10, radius, 0);
     scene.add(sphere);
@@ -345,8 +325,11 @@ function checkCollisions(){
             var pd = dedo.getWorldPosition(new THREE.Vector3());
             var po = object.getWorldPosition(new THREE.Vector3());
 
+            // adjust pd to finger's center
+            pd.y -= G.dedo.h/2;
+
             // get radius for bounding spheres
-            var rd = 1; // h_dedo TODO: how to get this value?
+            var rd = G.dedo.h/2;
             var ro = object.geometry.parameters.radius; // TODO: have object list
 
             if ((rd + ro)**2 > (pd.x - po.x)**2 + (pd.y - po.y)**2 + (pd.z - po.z)**2) {
@@ -464,64 +447,65 @@ function onKeyDown(e) {
 
         case 113: // q
         case 81:  // Q
-            grua.getObjectByName("ref_eixo").rotation.y += 0.025/4;
+            grua.getObjectByName("ref_eixo").rotation.y += DOF.eixo.step;
             break;
 
         case 97:  // a
         case 65:  // A
-            grua.getObjectByName("ref_eixo").rotation.y -= 0.025/4;
+            grua.getObjectByName("ref_eixo").rotation.y -= DOF.eixo.step;
             break;
-        
+
         case 119: // w
         case 87:  // W
             var ref = grua.getObjectByName("ref_carrinho");
-            if (ref.position.x < ref.userData.max_x)
-                ref.position.x = roundTo(ref.position.x + 0.05, 2)
+            if (ref.position.x < DOF.carrinho.max)
+                ref.position.x = roundTo(ref.position.x + DOF.carrinho.step, 4);
             break;
-        
+
         case 115: // s
         case 83:  // S
             var ref = grua.getObjectByName("ref_carrinho");
-            if (ref.position.x > ref.userData.min_x)
-                ref.position.x = roundTo(ref.position.x - 0.05, 2);
+            if (ref.position.x > DOF.carrinho.min)
+                ref.position.x = roundTo(ref.position.x - DOF.carrinho.step, 4);
             break;
-        
+
         case 101: // e
         case 69:  // E
             var ref = grua.getObjectByName("ref_bloco");
             var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
-            if (ref.position.y > ref.userData.min_y) {
-                // TODO cleanup and set constant
-                ref.position.y = roundTo(ref.position.y - 0.05, 4);
-                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y - 0.05/2, 4);
-                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y + 0.05/2, 4);
+            if (ref.position.y > DOF.bloco.min) {
+                ref.position.y = roundTo(ref.position.y - DOF.bloco.step, 4);
+                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y - DOF.bloco.step/2, 4);
+                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y + DOF.bloco.step/2, 4);
             }
             break;
-        
+
         case 100: // D
         case 68:  // d
             var ref = grua.getObjectByName("ref_bloco");
-            var ref_carrinho = grua.getObjectByName("ref_carrinho");
             var cabo_de_aco = grua.getObjectByName("cabo_de_aco");
-            if (ref.position.y < ref.userData.max_y) {
+            if (ref.position.y < DOF.bloco.max) {
                 // TODO cleanup and set constant
-                ref.position.y = roundTo(ref.position.y + 0.05, 4);
-                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y + 0.05/2, 4);
-                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y - 0.05/2, 4);
+                ref.position.y = roundTo(ref.position.y + DOF.bloco.step, 4);
+                cabo_de_aco.position.y = roundTo(cabo_de_aco.position.y + DOF.bloco.step/2, 4);
+                cabo_de_aco.scale.y = roundTo(cabo_de_aco.scale.y - DOF.bloco.step/2, 4);
             }
             break;
-
+        
         case 114: // r
         case 82:  // R
+        case 102: // f
+        case 70:  // F
             var ref = grua.getObjectByName("ref_bloco");
             if (ref) {
-                var angle = Math.PI / 24;
+                var angle = DOF.dedo.step * ((e.keyCode == 114 || e.keyCode == 82) ? -1 : 1); // TODO: check this
 
                 for (var i = 1; i <= 4; i++) {
                     var dedo = ref.getObjectByName('dedo' + i);
+                    // TODO: test rotation limits
                     if (dedo) {
-                        var axis = new THREE.Vector3(p(i), 0, q(i));  // check this
-                        axis.normalize(); 
+                        var axis = new THREE.Vector3((i <= 2 ? 1 : -1), 0, (i <= 2 ? -p(i)*q(i) : 0));  // TODO: check this
+                        axis.normalize();
                         dedo.rotateOnAxis(axis, angle);
                     }
                 }
@@ -554,23 +538,23 @@ function onKeyDown(e) {
     }
 }
 
-///////////////////////
+/////////////////////
 /* KEY UP CALLBACK */
-///////////////////////
+/////////////////////
 function onKeyUp(e){
     'use strict';
 }
 
-/////////////////////////////
+///////////
 /* UTILS */
-/////////////////////////////
+///////////
 
 function createTetrahedron(edgeLength, verticalHeight, color) {
     'use strict';
-    
+
     // Calculate the altitude of the equilateral triangle that forms the base of the tetrahedron
     var base_height = Math.sqrt(3) / 2 * edgeLength;
-    
+
     // Define the vertices of the tetrahedron
     var vertices = new Float32Array([
         -base_height / 3, 0, -edgeLength / 2,   // vertex 0
@@ -597,10 +581,14 @@ function p(n){ return Math.sign(-n%2 + 0.5); }
 
 function q(n){ return Math.sign(-2*n + 5); }
 
-function g(n){ return -p(n)*((q(n)+1)/2 * Math.PI/4 - ((q(n)-1)/2 * Math.PI/12)); }
+function g(n){ return -p(n)*((q(n)+1)/2 * Math.PI/12 - (q(n)-1)/2 * Math.PI/4);}
 
 function material(color) {
     return new THREE.MeshBasicMaterial({color: color, wireframe: true});
+}
+
+function color(i) { // TODO: remove
+    return i == 1 ? "red" : i == 2 ? "green" : i == 3 ? "yellow" : i == 4 ? "blue" : "black";
 }
 
 function roundTo(number, decimalPlaces) {
