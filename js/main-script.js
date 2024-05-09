@@ -15,6 +15,23 @@ var clock;
 //////////////////////
 /* GLOBAL CONSTANTS */
 //////////////////////
+const M = Object.freeze({ // Material constants
+    base: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
+    torre: new THREE.MeshBasicMaterial({ color: "yellow", wireframe: true}),
+    portaLancaBase: new THREE.MeshBasicMaterial({ color: "yellow", wireframe: true}),
+    portaLancaTopo: new THREE.MeshBasicMaterial({ color: "yellow", wireframe: true}),
+    cabine: new THREE.MeshBasicMaterial({ color: "grey", wireframe: true}),
+    lanca: new THREE.MeshBasicMaterial({ color: "yellow", wireframe: true}),
+    contraLanca: new THREE.MeshBasicMaterial({ color: "yellow", wireframe: true}),
+    contrapeso: new THREE.MeshBasicMaterial({ color: "grey", wireframe: true}),
+    tirante: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
+    carrinho: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
+    cabo: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
+    bloco: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
+    dedo: new THREE.MeshBasicMaterial({ color: "grey", wireframe: true, side: THREE.DoubleSide}),
+    contentor: new THREE.MeshBasicMaterial({ color: "red", wireframe: true, side: THREE.DoubleSide })
+});
+
 const G = Object.freeze({ // Geometry constants
     base: { r: 1.5, h: 0.5 },
     torre: { l: 1, h: 7, w: 1 },
@@ -143,11 +160,11 @@ function createCrane() {
     var grua = (new THREE.Object3D()).add(ref_eixo);
 
     // Create base
-    var base = new THREE.Mesh(new THREE.CylinderGeometry(G.base.r, G.base.r, G.base.h), material("green"));
+    var base = new THREE.Mesh(new THREE.CylinderGeometry(G.base.r, G.base.r, G.base.h), M.base);
     grua.add(base);
 
     // Create torre metálica
-    var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(G.torre.l, G.torre.h, G.torre.w), material("blue"));
+    var torreMetalica = new THREE.Mesh(new THREE.BoxGeometry(G.torre.l, G.torre.h, G.torre.w), M.torre);
     torreMetalica.position.set(0, G.base.h/2 + G.torre.h/2, 0);
     grua.add(torreMetalica);
 
@@ -164,14 +181,14 @@ function createRefEixo() {
     ref_eixo.position.set(0, G.base.h/2 + G.torre.h, 0);
 
     var components = {
-        portaLancaBase: new THREE.Mesh(new THREE.BoxGeometry(G.portaLancaBase.l, G.portaLancaBase.h, G.portaLancaBase.w), material("purple")),
-        portaLancaTopo: createTetrahedron(1, G.portaLancaTopo.h, "red"),
-        cabine: new THREE.Mesh(new THREE.BoxGeometry(G.cabine.l, G.cabine.h, G.cabine.w), material("yellow")),
-        lanca: new THREE.Mesh(new THREE.BoxGeometry(G.lanca.l, G.lanca.h, G.lanca.w), material("orange")),
-        contraLanca: new THREE.Mesh(new THREE.BoxGeometry(G.contraLanca.l, G.contraLanca.h, G.contraLanca.w), material("blue")),
-        contrapeso: new THREE.Mesh(new THREE.BoxGeometry(G.contrapeso.l, G.contrapeso.h, G.contrapeso.w), material("red")),
-        tiranteLanca: new THREE.Mesh(new THREE.CylinderGeometry(G.tirante.r, G.tirante.r, Math.sqrt(G.portaLancaTopo.h**2 + G.tirante.d**2)), material("green")),
-        tiranteContraLanca1: new THREE.Mesh(new THREE.CylinderGeometry(G.tirante.r, G.tirante.r, Math.sqrt((G.portaLancaTopo.h+G.contraLanca.h)**2 + G.contrapeso.d**2)), material("green")),
+        portaLancaBase: new THREE.Mesh(new THREE.BoxGeometry(G.portaLancaBase.l, G.portaLancaBase.h, G.portaLancaBase.w), M.portaLancaBase),
+        portaLancaTopo: new THREE.Mesh(createTetrahedronGeom(1, G.portaLancaTopo.h), M.portaLancaTopo),
+        cabine: new THREE.Mesh(new THREE.BoxGeometry(G.cabine.l, G.cabine.h, G.cabine.w), M.cabine),
+        lanca: new THREE.Mesh(new THREE.BoxGeometry(G.lanca.l, G.lanca.h, G.lanca.w), M.lanca),
+        contraLanca: new THREE.Mesh(new THREE.BoxGeometry(G.contraLanca.l, G.contraLanca.h, G.contraLanca.w), M.contraLanca),
+        contrapeso: new THREE.Mesh(new THREE.BoxGeometry(G.contrapeso.l, G.contrapeso.h, G.contrapeso.w), M.contrapeso),
+        tiranteLanca: new THREE.Mesh(new THREE.CylinderGeometry(G.tirante.r, G.tirante.r, Math.sqrt(G.portaLancaTopo.h**2 + G.tirante.d**2)), M.tirante),
+        tiranteContraLanca1: new THREE.Mesh(new THREE.CylinderGeometry(G.tirante.r, G.tirante.r, Math.sqrt((G.portaLancaTopo.h+G.contraLanca.h)**2 + G.contrapeso.d**2)), M.tirante),
         tiranteContraLanca2: undefined // to be defined later
     };
 
@@ -213,8 +230,8 @@ function createRefCarrinho() {
     ref_carrinho.position.set(DOF.carrinho.max, G.lanca.d, 0);
 
     var components = {
-        carrinho: new THREE.Mesh(new THREE.BoxGeometry(G.carrinho.l, G.carrinho.h, G.carrinho.w), material("pink")),
-        cabo_de_aco: new THREE.Mesh(new THREE.CylinderGeometry(G.cabo.r, G.cabo.r, G.cabo.l), material("green"))
+        carrinho: new THREE.Mesh(new THREE.BoxGeometry(G.carrinho.l, G.carrinho.h, G.carrinho.w), M.carrinho),
+        cabo_de_aco: new THREE.Mesh(new THREE.CylinderGeometry(G.cabo.r, G.cabo.r, G.cabo.l), M.cabo)
     };
 
     components.carrinho.position.set(0, -G.carrinho.h/2, 0);
@@ -235,12 +252,12 @@ function createRefBloco() {
     ref_bloco.name = "ref_bloco";
     ref_bloco.position.set(0, -G.carrinho.h - G.cabo.l, 0);
 
-    var bloco = new THREE.Mesh(new THREE.BoxGeometry(G.bloco.l, G.bloco.h, G.bloco.w), material("brown"));
+    var bloco = new THREE.Mesh(new THREE.BoxGeometry(G.bloco.l, G.bloco.h, G.bloco.w), M.bloco);
     bloco.position.set(0, -G.bloco.h/2, 0);
     ref_bloco.add(bloco);
 
     for (var i = 1; i <= 4; i++) {
-        var dedo = createTetrahedron(0.25, -G.dedo.h, color(i));
+        var dedo = new THREE.Mesh(createTetrahedronGeom(0.25, -G.dedo.h), M.dedo);
         dedo.rotateY(g(i));
         dedo.name = 'dedo' + i;
         dedo.position.set(p(i) * G.bloco.l * (1/3), -G.bloco.h, q(i) * G.bloco.w * (1/3));
@@ -290,8 +307,7 @@ function createContainer(width, height, depth, color) {
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex(indices);
 
-    var cuboid = new THREE.Mesh(geometry,
-        new THREE.MeshBasicMaterial({color: color, wireframe: true, side: THREE.DoubleSide}));
+    var cuboid = new THREE.Mesh(geometry, M.contentor);
 
     //    cuboid.position.set(6, height/2, 6);
     cuboid.position.set(6, height/2, 6);
@@ -564,7 +580,7 @@ function onKeyDown(e) {
         //     switchCamera(cameraMobile);
         //     break;
         case 55: // '7'
-            toggleWireframe(scene);  // TODO: check this
+            toggleWireframe(e);
             break;
 
 
@@ -623,7 +639,7 @@ function onKeyUp(e){
 ///////////
 /* UTILS */
 ///////////
-function createTetrahedron(edgeLength, verticalHeight, color) {
+function createTetrahedronGeom(edgeLength, verticalHeight) {
     'use strict';
 
     // Calculate the altitude of the equilateral triangle that forms the base of the tetrahedron
@@ -646,9 +662,7 @@ function createTetrahedron(edgeLength, verticalHeight, color) {
         2, 0, 3  // side face 3
     ]);
 
-    var tetrahedron = new THREE.Mesh(geometry, material(color));
-
-    return tetrahedron;
+    return geometry;
 }
 
 function p(n){ return Math.sign(-n%2 + 0.5); }
@@ -661,22 +675,10 @@ function material(color) {
     return new THREE.MeshBasicMaterial({color: color, wireframe: true});
 }
 
-function color(i) { // TODO: remove
-    return i == 1 ? "red" : i == 2 ? "green" : i == 3 ? "yellow" : i == 4 ? "blue" : "black";
-}
-
-function roundTo(number, decimalPlaces) {
-    let factor = Math.pow(10, decimalPlaces);
-    return Math.round(number * factor) / factor;
-}
-
-function toggleWireframe(object) {
+function toggleWireframe(e, isKeyUp) {
     'use strict';
-    object.traverse(function (child) {
-        if (child instanceof THREE.Mesh) {
-            child.material.wireframe = !child.material.wireframe;
-        }
-    });
+    if (e.repeat || isKeyUp) return;
+    Object.values(M).forEach((material) => (material.wireframe = !material.wireframe));
 }
 
 init();
