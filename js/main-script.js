@@ -8,7 +8,6 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 /* GLOBAL VARIABLES */
 //////////////////////
 var camera, scene, renderer, controls;
-var cameraFront, cameraSide, cameraTop, cameraFixedOrtho, cameraFixedPerspective, cameraMobile;
 var grua, container, object;
 var clock;
 
@@ -55,6 +54,15 @@ const DOF = Object.freeze({ // Degrees of freedom
     dedo: { vel: [0, 0], step: Math.PI/16, min: -Math.PI/4, max: Math.PI/9, cur_angle: 0 }  // TODO: adjust min and max values
 });
 
+const cameras = {
+    front: createOrthographicCamera(0, 0, 20),
+    side: createOrthographicCamera(20, 0, 0),
+    top: createOrthographicCamera(0, 20, 0),
+    fixedOrtho: createOrthographicCamera(20, 20, 20),
+    fixedPerspective: createPerspectiveCamera(20, 20, 20, 1),
+    mobile: createPerspectiveCamera(20, 20, 20, 0.1),
+};
+
 /////////////////////
 /* CREATE SCENE(S) */
 /////////////////////
@@ -79,63 +87,41 @@ function createScene() {
 function createCameras() {
     'use strict';
 
-    const aspectRatio = window.innerWidth / window.innerHeight;
-    const frustumSize = 30; // Common frustum size for a consistent zoom level
+    // Set default camera
+    camera = cameras.front;
 
-    // Helper function to create orthographic cameras
-    function createOrthographicCamera(x, y, z) {
-        const camera = new THREE.OrthographicCamera(
-            -frustumSize * aspectRatio / 2, frustumSize * aspectRatio / 2,
-            frustumSize / 2, -frustumSize / 2, 1, 1000
-        );
-        camera.position.set(x, y, z);
-        camera.lookAt(scene.position);
-        return camera;
+    // Loop through cameras and look at scene position
+    for (const key in cameras) {
+        if (key === "mobile") {
+            cameras[key].lookAt(new THREE.Vector3(0, -1, 0)); 
+        } else {
+            cameras[key].lookAt(scene.position);
+        }
     }
 
-    // Orthographic cameras
-    cameraFront = createOrthographicCamera(0, 0, 20);
-    cameraSide = createOrthographicCamera(20, 0, 0);
-    cameraTop = createOrthographicCamera(0, 20, 0);
-    cameraFixedOrtho = createOrthographicCamera(20, 20, 20);
+    // Additional setup
+    // controls = new OrbitControls(camera, renderer.domElement);
+    // controls.update();
 
-    // Perspective camera
-    cameraFixedPerspective = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
-    cameraFixedPerspective.position.set(20, 20, 20);
-    cameraFixedPerspective.lookAt(scene.position);
-
-    // cameraMobile = new THREE.PerspectiveCamera(70, aspectRatio, 1, 1000);
-    // This camera will be updated in the animation loop or event handlers to follow the crane hook
-
-    // Set the default camera
-    camera = cameraFront;
-
-    controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove this
-    controls.update();  // TODO: remove this
+ 
 }
 
-function switchCamera(newCamera) {
-    camera = newCamera;
+function createOrthographicCamera(x, y, z) {
+    const aspectRatio = window.innerWidth / window.innerHeight;
+    const frustumSize = 30;
+    const camera = new THREE.OrthographicCamera(
+        -frustumSize * aspectRatio / 2, frustumSize * aspectRatio / 2,
+        frustumSize / 2, -frustumSize / 2, 1, 1000
+    );
+    camera.position.set(x, y, z);
+    return camera;
+}
 
-    var width = window.innerWidth;
-    var height = window.innerHeight;
-    var aspectRatio = width / height;
-
-    // Update the newly activated camera
-    if (camera.isPerspectiveCamera) {
-        camera.aspect = aspectRatio;
-    } else if (camera.isOrthographicCamera) {
-        const frustumSize = 30; // Adjust as necessary
-        camera.left = -frustumSize * aspectRatio / 2;
-        camera.right = frustumSize * aspectRatio / 2;
-        camera.top = frustumSize / 2;
-        camera.bottom = -frustumSize / 2;
-    }
-    camera.updateProjectionMatrix();
-
-    controls.dispose();
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.update();
+function createPerspectiveCamera(x, y, z, near) {
+    const aspectRatio = window.innerWidth / window.innerHeight;
+    const camera = new THREE.PerspectiveCamera(70, aspectRatio, near, 1000);
+    camera.position.set(x, y, z);
+    return camera;
 }
 
 /////////////////////
@@ -256,6 +242,10 @@ function createRefBloco() {
     bloco.position.set(0, -G.bloco.h/2, 0);
     ref_bloco.add(bloco);
 
+    ref_bloco.add(cameras.mobile);
+    cameras.mobile.position.set(0, -G.bloco.h -G.dedo.h, 0);
+    cameras.mobile.lookAt(new THREE.Vector3(0, -1, 0)); // Ensure this camera looks downwards
+
     for (var i = 1; i <= 4; i++) {
         var dedo = new THREE.Mesh(createTetrahedronGeom(0.25, -G.dedo.h), M.dedo);
         dedo.rotateY(g(i));
@@ -375,7 +365,7 @@ function handleCollisions(){
 ////////////
 function update(delta_t){
     'use strict';
-
+    
     checkCollisions();
 
     // Update degrees of freedom
@@ -481,7 +471,7 @@ function animate() {
 
     render();
 
-    controls.update();
+    // controls.update();
 
     requestAnimationFrame(animate);
 }
@@ -490,28 +480,6 @@ function animate() {
 /* RESIZE WINDOW CALLBACK */
 ////////////////////////////
 function onResize() {
-    'use strict';
-
-    var width = window.innerWidth;
-    var height = window.innerHeight;
-    var aspectRatio = width / height;
-
-    renderer.setSize(width, height);
-
-    // Update the currently active camera
-    if (camera.isPerspectiveCamera) {
-        camera.aspect = aspectRatio;
-        camera.updateProjectionMatrix();
-    } else if (camera.isOrthographicCamera) {
-        const frustumSize = 30; // Assuming a default frustum size for orthographic cameras
-        camera.left = -frustumSize * aspectRatio / 2;
-        camera.right = frustumSize * aspectRatio / 2;
-        camera.top = frustumSize / 2;
-        camera.bottom = -frustumSize / 2;
-        camera.updateProjectionMatrix();
-    }
-
-    render();
 }
 
 ///////////////////////
@@ -562,28 +530,26 @@ function onKeyDown(e) {
             DOF.dedo.vel[0] = -1; // rotate in the negative direction
             break;
         case 49: // '1'
-            switchCamera(cameraFront);
+            camera = cameras.front;
             break;
         case 50: // '2'
-            switchCamera(cameraSide);
+            camera = cameras.side;
             break;
         case 51: // '3'
-            switchCamera(cameraTop);
+            camera = cameras.top;
             break;
         case 52: // '4'
-            switchCamera(cameraFixedOrtho);
+            camera = cameras.fixedOrtho;
             break;
         case 53: // '5'
-            switchCamera(cameraFixedPerspective);
+            camera = cameras.fixedPerspective;
             break;
-        // case 54: // '6'  // TODO: implement mobile camera
-        //     switchCamera(cameraMobile);
-        //     break;
+        case 54: // '6'
+            camera = cameras.mobile;
+            break;
         case 55: // '7'
             toggleWireframe(e);
             break;
-
-
     }
 }
 
@@ -669,7 +635,7 @@ function p(n){ return Math.sign(-n%2 + 0.5); }
 
 function q(n){ return Math.sign(-2*n + 5); }
 
-function g(n){ return -p(n) * (1/4 + (q(n)+1)/4) * Math.PI;}
+function g(n){ return -p(n) * (1/4 + (q(n)+1)/4) * Math.PI; }
 
 function material(color) {
     return new THREE.MeshBasicMaterial({color: color, wireframe: true});
