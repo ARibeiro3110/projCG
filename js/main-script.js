@@ -28,7 +28,8 @@ const M = Object.freeze({ // Material constants
     cabo: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
     bloco: new THREE.MeshBasicMaterial({ color: "black", wireframe: true}),
     dedo: new THREE.MeshBasicMaterial({ color: "grey", wireframe: true, side: THREE.DoubleSide}),
-    contentor: new THREE.MeshBasicMaterial({ color: "red", wireframe: true, side: THREE.DoubleSide })
+    contentor: new THREE.MeshBasicMaterial({ color: "red", wireframe: true, side: THREE.DoubleSide }),
+    carga: new THREE.MeshBasicMaterial({ color: "black", wireframe: true})
 });
 
 const G = Object.freeze({ // Geometry constants
@@ -44,7 +45,8 @@ const G = Object.freeze({ // Geometry constants
     carrinho: { l: 1, h: 0.5, w: 1 },
     cabo: { r: 0.05, l: 2 },
     bloco: { l: 0.75, h: 0.75, w: 0.75 },
-    dedo: { l: 0.25, h: 1 }
+    dedo: { l: 0.25, h: 1 },
+    contentor: { h: 1.5, w: 2, d: 1.5 }
 });
 
 var apotemaBase = Math.sqrt(3) * G.dedo.l / 2;
@@ -67,7 +69,7 @@ const cameras = {
     top: createOrthographicCamera(0, 20, 0),
     fixedOrtho: createOrthographicCamera(20, 20, 20),
     fixedPerspective: createPerspectiveCamera(20, 20, 20, 1),
-    mobile: createPerspectiveCamera(20, 20, 20, 0.1),
+    mobile: createPerspectiveCamera(20, 20, 20, 0.1)  // Camera position will be updated in createRefBloco()
 };
 
 /////////////////////
@@ -84,8 +86,9 @@ function createScene() {
     scene.background = new THREE.Color(0xB6D0E2);  // TODO: change to light colour
 
     grua = createCrane();
-    container = createContainer(2, 1.5, 1.5, "red");
+    container = createContainer();
     object = createObject(0.5, "blue");
+    createGeometricObjects();
 }
 
 //////////////////////
@@ -100,15 +103,15 @@ function createCameras() {
     // Loop through cameras and look at scene position
     for (const key in cameras) {
         if (key === "mobile") {
-            cameras[key].lookAt(new THREE.Vector3(0, -1, 0)); 
+            cameras[key].lookAt(new THREE.Vector3(0, -100, 0)); 
         } else {
             cameras[key].lookAt(scene.position);
         }
     }
 
     // Additional setup
-    // controls = new OrbitControls(camera, renderer.domElement);
-    // controls.update();
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.update();
 
  
 }
@@ -251,7 +254,6 @@ function createRefBloco() {
 
     ref_bloco.add(cameras.mobile);
     cameras.mobile.position.set(0, -G.bloco.h -G.dedo.h, 0);
-    cameras.mobile.lookAt(new THREE.Vector3(0, -1, 0)); // Ensure this camera looks downwards
 
     for (var i = 1; i <= 4; i++) {
         var dedo = new THREE.Mesh(createTetrahedronGeom(G.dedo.l, -G.dedo.h), M.dedo);
@@ -264,55 +266,91 @@ function createRefBloco() {
     return ref_bloco;
 }
 
-function createContainer(width, height, depth, color) {
+function createContainer() {
     'use strict';
+
+    var height = G.contentor.h;
+    var width = G.contentor.w;
+    var depth = G.contentor.d;
 
     var vertices = new Float32Array([
         // Front face
-        -width / 2, -height / 2, depth / 2,   // bottom left
-        width / 2, -height / 2, depth / 2,    // bottom right
-        width / 2, height / 2, depth / 2,     // top right
-        -width / 2, height / 2, depth / 2,    // top left
+        -width / 2, -height / 2, depth / 2,  // bottom left 0
+        width / 2, -height / 2, depth / 2,   // bottom right 1
+        width / 2, height / 2, depth / 2,    // top right 2
+        -width / 2, height / 2, depth / 2,   // top left 3
 
         // Back face
-        -width / 2, -height / 2, -depth / 2,  // bottom left
-        width / 2, -height / 2, -depth / 2,   // bottom right
-        width / 2, height / 2, -depth / 2,    // top right
-        -width / 2, height / 2, -depth / 2,   // top left
-
-        // Bottom face
-        -width / 2, -height / 2, depth / 2,   // front left
-        width / 2, -height / 2, depth / 2,    // front right
-        width / 2, -height / 2, -depth / 2,   // back right
-        -width / 2, -height / 2, -depth / 2,  // back left
+        -width / 2, -height / 2, -depth / 2, // bottom left 4
+        width / 2, -height / 2, -depth / 2,  // bottom right 5
+        width / 2, height / 2, -depth / 2,   // top right 6
+        -width / 2, height / 2, -depth / 2,  // top left 7
     ]);
 
     var indices = [
         // Front face
         0, 1, 2,  0, 2, 3,
         // Back face
-        4, 7, 6,  4, 6, 5,
+        4, 5, 6,  4, 6, 7,
         // Bottom face
-        8, 11, 10, 8, 10, 9,
+        0, 1, 5,  0, 5, 4,
         // Right face
         1, 5, 6,  1, 6, 2,
         // Left face
-        0, 3, 7,  0, 7, 4
+        0, 4, 7,  0, 7, 3
     ];
-
+    
     var geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex(indices);
 
-    var cuboid = new THREE.Mesh(geometry, M.contentor);
+    var container = new THREE.Mesh(geometry, M.contentor);
 
-    //    cuboid.position.set(6, height/2, 6);
-    cuboid.position.set(6, height/2, 6);
-    scene.add(cuboid);
+    container.position.set(6, height/2, 6);
+    scene.add(container);
 
-    return cuboid;
+    return container;
 }
 
+function createGeometricObjects() {
+    'use strict';
+
+    var objects = [];
+    var geometries = [
+        new THREE.BoxGeometry(0.6, 0.5, 0.4), // Cube
+        new THREE.DodecahedronGeometry(0.35), // Dodecahedron
+        new THREE.IcosahedronGeometry(0.5), // Icosahedron
+        new THREE.TorusGeometry(0.4, 0.2, 16, 100), // Torus
+        new THREE.TorusKnotGeometry(0.3, 0.2, 100, 16) // Torus Knot
+    ];
+
+    geometries.sort(() => Math.random() - 0.5);
+
+    var step = (G.lanca.l - G.base.r) / 5;
+    var radius = G.base.r + 1;
+    var mesh;
+
+    geometries.forEach((geometry) => {
+        do {
+            let angle = Math.random() * 2 * Math.PI;
+
+            let x = Math.cos(angle) * radius;
+            let y = 0; // FIXME: Objects may be below the base of the crane
+            let z = Math.sin(angle) * radius;
+
+            mesh = new THREE.Mesh(geometry, M.carga);
+            mesh.position.set(x, y, z);
+            mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            
+        } while (isIntersectingWithContainer(mesh)); // if the object intersects with the container, create another one
+        
+        scene.add(mesh);
+        objects.push(mesh);
+        radius += step;
+    });
+
+    return objects;
+}
 
 function createObject(radius, color) {
     'use strict';
@@ -478,7 +516,7 @@ function animate() {
 
     render();
 
-    // controls.update();
+    controls.update();
 
     requestAnimationFrame(animate);
 }
@@ -652,6 +690,23 @@ function toggleWireframe(e, isKeyUp) {
     'use strict';
     if (e.repeat || isKeyUp) return;
     Object.values(M).forEach((material) => (material.wireframe = !material.wireframe));
+}
+
+function isIntersectingWithContainer(mesh) {
+    // Get the bounding box of the mesh
+    var boundingBox = new THREE.Box3().setFromObject(mesh);
+
+    // Container bounds
+    var minX = container.position.x - G.contentor.w / 2;
+    var maxX = container.position.x + G.contentor.w / 2;
+    var minZ = container.position.z - G.contentor.d / 2;
+    var maxZ = container.position.z + G.contentor.d / 2;
+
+    // Check if the mesh's bounding box intersects with the container
+    return (
+        (boundingBox.min.x <= maxX && boundingBox.max.x >= minX) &&
+        (boundingBox.min.z <= maxZ && boundingBox.max.z >= minZ)
+    );
 }
 
 init();
