@@ -9,7 +9,8 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 //////////////////////
 var camera, scene, renderer, controls;
 var grua, container;
-var objects;
+var objects = [];
+var objectsColliders = [];
 var clock;
 
 var animation = ({
@@ -267,6 +268,14 @@ function createRefBloco() {
         dedo.name = 'dedo' + i;
         dedo.position.set(p(i) * G.bloco.l * (1/3), -G.bloco.h, q(i) * G.bloco.w * (1/3));
         ref_bloco.add(dedo);
+
+        // Create collider for finger
+        var colliderRadius = G.dedo.h / 2;
+        var collider = new THREE.Mesh(new THREE.SphereGeometry(colliderRadius, 16, 16), new THREE.MeshBasicMaterial({ visible: false }));
+        collider.position.copy(dedo.position);
+        collider.position.y -= G.dedo.h/2;
+        collider.name = 'fingerCollider' + i;
+        ref_bloco.add(collider);
     }
 
     return ref_bloco;
@@ -321,7 +330,6 @@ function createContainer() {
 function createGeometricObjects() {
     'use strict';
 
-    var objects = [];
     var geometries = [
         new THREE.BoxGeometry(0.6, 0.5, 0.4), // Cube
         new THREE.DodecahedronGeometry(0.35), // Dodecahedron
@@ -334,25 +342,33 @@ function createGeometricObjects() {
 
     var step = (G.lanca.l - G.base.r) / 5;
     var radius = G.base.r + 1;
-    var mesh;
+    var mesh, collider;
 
     geometries.forEach((geometry) => {
         do {
             let angle = Math.random() * 2 * Math.PI;
 
             let x = Math.cos(angle) * radius;
-            let y = 0; // FIXME: Objects may be below the base of the crane
+            let y = 0;
             let z = Math.sin(angle) * radius;
 
             mesh = new THREE.Mesh(geometry, M.carga);
             mesh.position.set(x, y, z);
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
             
-        } while (isIntersectingWithContainer(mesh)); // if the object intersects with the container, create another one
+        } while (isIntersectingWithContainer(mesh)); // If the object intersects with the container, create another one
 
         scene.add(mesh);
         objects.push(mesh);
         radius += step;
+
+        // Create collider for object
+        mesh.geometry.computeBoundingSphere();
+        collider = new THREE.Mesh(new THREE.SphereGeometry(mesh.geometry.boundingSphere.radius, 16, 16), new THREE.MeshBasicMaterial({ visible: false }));
+        collider.position.copy(mesh.position);
+        scene.add(collider);
+        objectsColliders.push(collider);
+
     });
 
     return objects;
@@ -365,22 +381,20 @@ function checkCollisions(){
     'use strict';
 
     for (var i = 1; i <= 4; i++) {
-        var dedo = grua.getObjectByName('ref_bloco').getObjectByName('dedo' + i);
-        if (dedo) {
-            // get finger's position and radius
-            var pd = dedo.getWorldPosition(new THREE.Vector3());
-            pd.y -= G.dedo.h/2; // adjust pd to finger's center
-            var rd = G.dedo.h/2;
+        var fingerCollider = grua.getObjectByName('ref_bloco').getObjectByName('fingerCollider' + i);
+        if (fingerCollider) {
+            // Get finger colliders's position and radius
+            var finger_pos = fingerCollider.getWorldPosition(new THREE.Vector3());
+            var finger_r = fingerCollider.geometry.parameters.radius;
 
-            for (var object of objects) {
-                // get object's position and radius
-                var po = object.getWorldPosition(new THREE.Vector3());
-                var ro = object.geometry.parameters.radius || Math.max(object.geometry.parameters.width,
-                                                                  object.geometry.parameters.height,
-                                                                  object.geometry.parameters.depth) / 2;
+            for (var j = 0; j < objects.length; j++) {
+                // Get object collider's position and radius
+                var object_pos = objectsColliders[j].getWorldPosition(new THREE.Vector3());
+                var object_r = objectsColliders[j].geometry.parameters.radius;
 
-                if ((rd + ro)**2 > (pd.x - po.x)**2 + (pd.y - po.y)**2 + (pd.z - po.z)**2) {
-                    animation.carriedObject = object;
+                if ((finger_r + object_r)**2 > (finger_pos.x - object_pos.x)**2 + 
+                        (finger_pos.y - object_pos.y)**2 + (finger_pos.z - object_pos.z)**2) {
+                    animation.carriedObject = objects[j];
                     return true;
                 }
             }
@@ -622,6 +636,9 @@ function updatePhase3(delta_t) {
         ref_bloco.remove(animation.carriedObject);
         var index = objects.indexOf(animation.carriedObject);
         objects.splice(index, 1); // Remove object from objects array
+
+        scene.remove(objectsColliders[index]); // Remove collider
+        objectsColliders.splice(index, 1);
         
         animation.running = false; // End of animation
         animation.phase = 0;
