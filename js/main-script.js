@@ -7,7 +7,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 //////////////////////
 /* GLOBAL VARIABLES */
 //////////////////////
-var camera, scene, renderer, controls;
+var camera, scene, renderer;
 var grua, container;
 var objects = [];
 var objectsColliders = [];
@@ -80,6 +80,14 @@ const cameras = {
     mobile: createPerspectiveCamera(20, 20, 20, 0.1)  // Camera position will be updated in createRefBloco()
 };
 
+const keyListItems = document.querySelectorAll('#key-list li');
+
+const codeToKey = {
+    113: 'Q', 81: 'Q', 97: 'A', 65: 'A', 119: 'W', 87: 'W', 115: 'S', 83: 'S',
+    101: 'E', 69: 'E', 100: 'D', 68: 'D', 114: 'R', 82: 'R', 102: 'F', 70: 'F',
+    49: '1', 50: '2', 51: '3', 52: '4', 53: '5', 54: '6', 55: '7'
+};
+
 /////////////////////
 /* CREATE SCENE(S) */
 /////////////////////
@@ -110,17 +118,11 @@ function createCameras() {
     // Loop through cameras and look at scene position
     for (const key in cameras) {
         if (key === "mobile") {
-            cameras[key].lookAt(new THREE.Vector3(0, -100, 0)); 
+            cameras[key].lookAt(new THREE.Vector3(0, -100, 0));
         } else {
             cameras[key].lookAt(scene.position);
         }
     }
-
-    // Additional setup
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.update();
-
- 
 }
 
 function createOrthographicCamera(x, y, z) {
@@ -314,7 +316,7 @@ function createContainer() {
         // Left face
         0, 4, 7,  0, 7, 3
     ];
-    
+
     var geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex(indices);
@@ -355,7 +357,7 @@ function createGeometricObjects() {
             mesh = new THREE.Mesh(geometry, M.carga);
             mesh.position.set(x, y, z);
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-            
+
         } while (isIntersectingWithContainer(mesh)); // If the object intersects with the container, create another one
 
         scene.add(mesh);
@@ -392,7 +394,7 @@ function checkCollisions(){
                 var object_pos = objectsColliders[j].getWorldPosition(new THREE.Vector3());
                 var object_r = objectsColliders[j].geometry.parameters.radius;
 
-                if ((finger_r + object_r)**2 > (finger_pos.x - object_pos.x)**2 + 
+                if ((finger_r + object_r)**2 > (finger_pos.x - object_pos.x)**2 +
                         (finger_pos.y - object_pos.y)**2 + (finger_pos.z - object_pos.z)**2) {
                     animation.carriedObject = objects[j];
                     return true;
@@ -451,7 +453,7 @@ function update(delta_t){
     else { // Key-driven movement
         if (checkCollisions())
             animation.running = true;
-        
+
         var vel;
 
         // Update eixo
@@ -462,7 +464,7 @@ function update(delta_t){
         // Update carrinho
         vel = DOF.carrinho.vel[0] + DOF.carrinho.vel[1];
         vel = vel * DOF.carrinho.step * delta_t;
-        
+
         var pos = ref_carrinho.position;
         if (pos.x + vel > DOF.carrinho.min && pos.x + vel < DOF.carrinho.max) {
             pos.x += vel;
@@ -475,7 +477,7 @@ function update(delta_t){
         var pos = ref_bloco.position;
         if (pos.y + vel > DOF.bloco.min && pos.y + vel < DOF.bloco.max) {
             pos.y += vel;
-            
+
             // Extend cable
             var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
             cabo_de_aco.position.y += vel/2;
@@ -513,7 +515,7 @@ function updatePhase0(delta_t) {
     var ref_bloco = grua.getObjectByName("ref_bloco");
 
     var vel = 1 * DOF.dedo.step * delta_t;
-            
+
     if (DOF.dedo.cur_angle + vel < DOF.dedo.max) {
         for (var i = 1; i <= 4; i++) {
             var dedo = ref_bloco.getObjectByName('dedo' + i);
@@ -543,10 +545,10 @@ function updatePhase1(delta_t) {
     vel = 1 * DOF.bloco.step * delta_t;
     var pos = ref_bloco.position;
     var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
-    
+
     if (pos.y + vel < -4) {
         pos.y += vel;
-        
+
         // Retract cable
         cabo_de_aco.position.y += vel/2;
         cabo_de_aco.scale.y -= vel/2;
@@ -605,7 +607,7 @@ function updatePhase2(delta_t) {
 
     if (pos.y + vel > DOF.bloco.min + G.contentor.h) {
         pos.y += vel;
-        
+
         // Extend cable
         var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
         cabo_de_aco.position.y += vel/2;
@@ -638,7 +640,7 @@ function updatePhase3(delta_t) {
 
         scene.remove(objectsColliders[index]); // Remove collider
         objectsColliders.splice(index, 1);
-        
+
         animation.running = false; // End of animation
         animation.phase = 0;
         animation.carriedObject = null;
@@ -682,14 +684,12 @@ function init() {
 /////////////////////
 function animate() {
     'use strict';
-    
+
     var delta_t = clock.getDelta();
 
     update(delta_t);
 
     render();
-
-    controls.update();
 
     requestAnimationFrame(animate);
 }
@@ -710,9 +710,17 @@ function onKeyDown(e) {
         return;
     }
 
+    keyListItems.forEach(item => {
+        const listItemKey = item.getAttribute('data-key');
+        if (listItemKey === codeToKey[e.keyCode]
+            && !item.classList.contains('key-pressed')) {
+            item.classList.add('key-pressed');
+        }
+    });
+
     switch (e.keyCode) {
         case 113: // q
-        case 81:  // Q   
+        case 81:  // Q
             DOF.eixo.vel[0] = -1; // rotate in the negative direction
             break;
 
@@ -740,7 +748,7 @@ function onKeyDown(e) {
         case 68:  // d
             DOF.bloco.vel[1] = 1; // go up
             break;
-        
+
         case 114: // r
         case 82:  // R
             DOF.dedo.vel[1] = 1; // rotate in the positive direction
@@ -779,6 +787,14 @@ function onKeyDown(e) {
 function onKeyUp(e){
     'use strict';
 
+    keyListItems.forEach(item => {
+        const listItemKey = item.getAttribute('data-key');
+        if (listItemKey === codeToKey[e.keyCode]
+            && item.classList.contains('key-pressed')) {
+            item.classList.remove('key-pressed');
+        }
+    });
+
     switch (e.keyCode) {
         case 113: // q
         case 81:  // Q
@@ -809,12 +825,12 @@ function onKeyUp(e){
         case 68:  // d
             DOF.bloco.vel[1] = 0;
             break;
-        
+
         case 114: // r
         case 82:  // R
             DOF.dedo.vel[1] = 0;
             break;
-        
+
         case 102: // f
         case 70:  // F
             DOF.dedo.vel[0] = 0;
