@@ -412,7 +412,10 @@ function update(delta_t){
         if (!animation.carriedObject.parent || animation.carriedObject.parent !== ref_bloco) {
             // TODO: apply change of basis to preserve object's relative position to the block
             ref_bloco.add(animation.carriedObject);
-            animation.carriedObject.position.set(0, - G.bloco.h/2 - G.dedo.h - animation.carriedObject.geometry.parameters.radius, 0);
+            var obj_radius = animation.carriedObject.geometry.parameters.radius || Math.max(animation.carriedObject.geometry.parameters.width,
+                                                                                            animation.carriedObject.geometry.parameters.height,
+                                                                                            animation.carriedObject.geometry.parameters.depth) / 2;
+            animation.carriedObject.position.set(0, - G.bloco.h/2 - G.dedo.h - obj_radius, 0);
         }
 
         switch (animation.phase) {
@@ -523,50 +526,59 @@ function updatePhase1(delta_t) {
     var vel;
     var containerPos = container.position;
 
-    /* Rotate crane to container */
-    vel = 1 * DOF.eixo.step * delta_t;
-    var pos = ref_eixo.position;
-
-    var angle = ref_eixo.rotation.y;
-    var targetAngle = -Math.atan2(containerPos.z - pos.z, containerPos.x - pos.x);
-    var diff_angle = targetAngle - angle; // Angle difference
-
-    if (Math.abs(diff_angle) > vel) {
-        ref_eixo.rotation.y += Math.sign(diff_angle) * vel;
-    } else {
-        ref_eixo.rotation.y = targetAngle; // Align to target angle
-    }
-
-    /* Align kart with container */
-    vel = 1 * DOF.carrinho.step * delta_t;
-    var pos = ref_carrinho.position;
-
-    var center = ref_eixo.position;
-    var dist_container = Math.sqrt((containerPos.x - center.x)**2 + (containerPos.z - center.z)**2);
-    var dist_carrinho = Math.abs(pos.x - center.x);
-    var diff_dist = dist_container - dist_carrinho; // Distance difference
-
-    if (Math.abs(diff_dist) > vel) {
-        pos.x += Math.sign(diff_dist) * vel;
-    } else {
-        pos.x = dist_container; // Align to target distance
-    }
-
     /* Raise block */
     vel = 1 * DOF.bloco.step * delta_t;
     var pos = ref_bloco.position;
+    var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
     
-    if ((diff_angle || diff_dist) && pos.y + vel < -4) {
+    if (pos.y + vel < -4) {
         pos.y += vel;
         
         // Retract cable
-        var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
         cabo_de_aco.position.y += vel/2;
         cabo_de_aco.scale.y -= vel/2;
     }
 
-    if (!diff_angle && !diff_dist) // If the block is already aligned with the container
-        animation.phase = 2;
+    // Get block position in world coordinates
+    var blockPos = ref_bloco.getWorldPosition(new THREE.Vector3());
+
+    // Get distance to container in xz plane
+    var dist_to_container = Math.sqrt((containerPos.x - blockPos.x)**2 + (containerPos.z - blockPos.z)**2);
+
+    // This condition prevents the object from colliding with the container
+    if (dist_to_container > 2 || pos.y >= -4 - vel) {
+        /* Rotate crane to container */
+        vel = 1 * DOF.eixo.step * delta_t;
+        var pos = ref_eixo.position;
+
+        var angle = ref_eixo.rotation.y;
+        var targetAngle = -Math.atan2(containerPos.z - pos.z, containerPos.x - pos.x);
+        var diff_angle = targetAngle - angle; // Angle difference
+
+        if (Math.abs(diff_angle) > vel) {
+            ref_eixo.rotation.y += Math.sign(diff_angle) * vel;
+        } else {
+            ref_eixo.rotation.y = targetAngle; // Align to target angle
+        }
+
+        /* Align kart with container */
+        vel = 1 * DOF.carrinho.step * delta_t;
+        var pos = ref_carrinho.position;
+
+        var center = ref_eixo.position;
+        var dist_container = Math.sqrt((containerPos.x - center.x)**2 + (containerPos.z - center.z)**2);
+        var dist_carrinho = Math.abs(pos.x - center.x);
+        var diff_dist = dist_container - dist_carrinho; // Distance difference
+
+        if (Math.abs(diff_dist) > vel) {
+            pos.x += Math.sign(diff_dist) * vel;
+        } else {
+            pos.x = dist_container; // Align to target distance
+        }
+
+        if (!diff_angle && !diff_dist) // If the block is already aligned with the container
+            animation.phase = 2;
+    }
 }
 
 function updatePhase2(delta_t) {
