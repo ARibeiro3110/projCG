@@ -8,10 +8,15 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 /* GLOBAL VARIABLES */
 //////////////////////
 var camera, scene, renderer, controls;
-var grua, container, object;
+var grua, container;
+var objects;
 var clock;
 
-var pickUpAnimation = false;
+var animation = ({
+    running: false,
+    phase: 0,
+    carriedObject: null,
+})
 
 //////////////////////
 /* GLOBAL CONSTANTS */
@@ -35,7 +40,7 @@ const M = Object.freeze({ // Material constants
 });
 
 const G = Object.freeze({ // Geometry constants
-    base: { r: 1.5, h: 0.5 },
+    base: { r: 1.5, h: 0.25 },
     torre: { l: 1, h: 7, w: 1 },
     portaLancaBase: { l: 1, h: 2, w: 1 },
     portaLancaTopo: { h: 2 },
@@ -85,12 +90,11 @@ function createScene() {
     scene.add(new THREE.AxesHelper(10));
 
     // background color
-    scene.background = new THREE.Color(0xB6D0E2);  // TODO: change to light colour
+    scene.background = new THREE.Color(0xB6D0E2);
 
     grua = createCrane();
     container = createContainer();
-    object = createObject(0.5, "blue");
-    createGeometricObjects();
+    objects = createGeometricObjects();
 }
 
 //////////////////////
@@ -345,26 +349,13 @@ function createGeometricObjects() {
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
             
         } while (isIntersectingWithContainer(mesh)); // if the object intersects with the container, create another one
-        
+
         scene.add(mesh);
         objects.push(mesh);
         radius += step;
     });
 
     return objects;
-}
-
-function createObject(radius, color) {
-    'use strict';
-
-    // sphere
-    var geometry = new THREE.SphereGeometry(radius, 32, 32);
-    var sphere = new THREE.Mesh(geometry, material(color));
-    // TODO: get position as a parameter
-    sphere.position.set(10, radius, 0);
-    scene.add(sphere);
-
-    return sphere;
 }
 
 //////////////////////
@@ -376,25 +367,26 @@ function checkCollisions(){
     for (var i = 1; i <= 4; i++) {
         var dedo = grua.getObjectByName('ref_bloco').getObjectByName('dedo' + i);
         if (dedo) {
-            // get positions in world coordinates
+            // get finger's position and radius
             var pd = dedo.getWorldPosition(new THREE.Vector3());
-            var po = object.getWorldPosition(new THREE.Vector3());
-
-            // adjust pd to finger's center
-            pd.y -= G.dedo.h/2;
-
-            // get radius for bounding spheres
+            pd.y -= G.dedo.h/2; // adjust pd to finger's center
             var rd = G.dedo.h/2;
-            var ro = object.geometry.parameters.radius; // TODO: have object list
 
-            if ((rd + ro)**2 > (pd.x - po.x)**2 + (pd.y - po.y)**2 + (pd.z - po.z)**2) {
-                return true;
-            } else {
-                return false;
+            for (var object of objects) {
+                // get object's position and radius
+                var po = object.getWorldPosition(new THREE.Vector3());
+                var ro = object.geometry.parameters.radius || Math.max(object.geometry.parameters.width,
+                                                                  object.geometry.parameters.height,
+                                                                  object.geometry.parameters.depth) / 2;
+
+                if ((rd + ro)**2 > (pd.x - po.x)**2 + (pd.y - po.y)**2 + (pd.z - po.z)**2) {
+                    animation.carriedObject = object;
+                    return true;
+                }
             }
         }
     }
-
+    return false;
 }
 
 ///////////////////////
@@ -410,92 +402,41 @@ function handleCollisions(){
 ////////////
 function update(delta_t){
     'use strict';
-    
-    if (checkCollisions() && !pickUpAnimation)
-        pickUpAnimation = true;
 
     var ref_eixo = grua.getObjectByName("ref_eixo");
     var ref_carrinho = grua.getObjectByName("ref_carrinho");
     var ref_bloco = grua.getObjectByName("ref_bloco");
 
-    var vel;
-
-    if (pickUpAnimation) { // Animation-driven movement
-
+    if (animation.running) { // Animation-driven movement
         // Add object to ref_bloco
-        if (!object.parent || object.parent !== ref_bloco) {
+        if (!animation.carriedObject.parent || animation.carriedObject.parent !== ref_bloco) {
             // TODO: apply change of basis to preserve object's relative position to the block
-            ref_bloco.add(object);
-            object.position.set(0, - G.bloco.h/2 - G.dedo.h - object.geometry.parameters.radius, 0);
+            ref_bloco.add(animation.carriedObject);
+            animation.carriedObject.position.set(0, - G.bloco.h/2 - G.dedo.h - animation.carriedObject.geometry.parameters.radius, 0);
         }
 
-
-        // Get container position
-        var containerPos = container.position;
-
-        /* Rotate crane to container */
-        vel = 1 * DOF.eixo.step * delta_t;
-        var pos = ref_eixo.position;
-
-        var angle = ref_eixo.rotation.y;
-        var targetAngle = -Math.atan2(containerPos.z - pos.z, containerPos.x - pos.x);
-        var diff_angle = targetAngle - angle; // Angle difference
-
-        if (Math.abs(diff_angle) > vel) {
-            ref_eixo.rotation.y += Math.sign(diff_angle) * vel;
-        } else {
-            ref_eixo.rotation.y = targetAngle; // Align to target angle
+        switch (animation.phase) {
+            case 0:
+                updatePhase0(delta_t);
+                break;
+            case 1:
+                updatePhase1(delta_t);
+                break;
+            case 2:
+                updatePhase2(delta_t);
+                break;
+            case 3:
+                updatePhase3(delta_t);
+                break;
+            default:
+                break;
         }
-
-        /* Align kart with container */
-        vel = 1 * DOF.carrinho.step * delta_t;
-        var pos = ref_carrinho.position;
-
-        var center = ref_eixo.position;
-        var dist_container = Math.sqrt((containerPos.x - center.x)**2 + (containerPos.z - center.z)**2);
-        var dist_carrinho = Math.abs(pos.x - center.x);
-        var diff_dist = dist_container - dist_carrinho; // Distance difference
-
-        if (Math.abs(diff_dist) > vel) {
-            pos.x += Math.sign(diff_dist) * vel;
-        } else {
-            pos.x = dist_container; // Align to target distance
-        }
-
-        /* Raise block */
-        vel = 1 * DOF.bloco.step * delta_t;
-        var pos = ref_bloco.position;
-        
-        if ((diff_angle || diff_dist) && pos.y + vel < -4) {
-            pos.y += vel;
-            
-            // Retract cable
-            var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
-            cabo_de_aco.position.y += vel/2;
-            cabo_de_aco.scale.y -= vel/2;
-        }
-
-        /* Lower block */
-        vel = -1 * DOF.bloco.step * delta_t;
-        var pos = ref_bloco.position;
-
-        if (!diff_angle && !diff_dist) {
-            if (pos.y + vel > DOF.bloco.min + G.contentor.h) {
-                pos.y += vel;
-                
-                // Extend cable
-                var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
-                cabo_de_aco.position.y += vel/2;
-                cabo_de_aco.scale.y -= vel/2;
-            }
-            else {
-                ref_bloco.remove(object);
-                pickUpAnimation = false; // End of animation
-            }
-        }
-
     }
     else { // Key-driven movement
+        if (checkCollisions())
+            animation.running = true;
+        
+        var vel;
 
         // Update eixo
         vel = DOF.eixo.vel[0] + DOF.eixo.vel[1]; // Get velocity direction
@@ -547,6 +488,132 @@ function update(delta_t){
         if (rotated) {
             DOF.dedo.cur_angle += angle;
         }
+    }
+}
+
+function updatePhase0(delta_t) {
+    'use strict';
+
+    var ref_bloco = grua.getObjectByName("ref_bloco");
+
+    var vel = 1 * DOF.dedo.step * delta_t;
+            
+    if (DOF.dedo.cur_angle + vel < DOF.dedo.max) {
+        for (var i = 1; i <= 4; i++) {
+            var dedo = ref_bloco.getObjectByName('dedo' + i);
+            if (dedo) {
+                dedo.rotateOnAxis(new THREE.Vector3(-1, 0, 0), vel);
+            }
+        }
+        DOF.dedo.cur_angle += vel;
+    }
+    else { // If fingers are closed
+        DOF.dedo.cur_angle = DOF.dedo.max; // Align to target angle
+        animation.phase = 1;
+    }
+}
+
+function updatePhase1(delta_t) {
+    'use strict';
+
+    var ref_eixo = grua.getObjectByName("ref_eixo");
+    var ref_carrinho = grua.getObjectByName("ref_carrinho");
+    var ref_bloco = grua.getObjectByName("ref_bloco");
+
+    var vel;
+    var containerPos = container.position;
+
+    /* Rotate crane to container */
+    vel = 1 * DOF.eixo.step * delta_t;
+    var pos = ref_eixo.position;
+
+    var angle = ref_eixo.rotation.y;
+    var targetAngle = -Math.atan2(containerPos.z - pos.z, containerPos.x - pos.x);
+    var diff_angle = targetAngle - angle; // Angle difference
+
+    if (Math.abs(diff_angle) > vel) {
+        ref_eixo.rotation.y += Math.sign(diff_angle) * vel;
+    } else {
+        ref_eixo.rotation.y = targetAngle; // Align to target angle
+    }
+
+    /* Align kart with container */
+    vel = 1 * DOF.carrinho.step * delta_t;
+    var pos = ref_carrinho.position;
+
+    var center = ref_eixo.position;
+    var dist_container = Math.sqrt((containerPos.x - center.x)**2 + (containerPos.z - center.z)**2);
+    var dist_carrinho = Math.abs(pos.x - center.x);
+    var diff_dist = dist_container - dist_carrinho; // Distance difference
+
+    if (Math.abs(diff_dist) > vel) {
+        pos.x += Math.sign(diff_dist) * vel;
+    } else {
+        pos.x = dist_container; // Align to target distance
+    }
+
+    /* Raise block */
+    vel = 1 * DOF.bloco.step * delta_t;
+    var pos = ref_bloco.position;
+    
+    if ((diff_angle || diff_dist) && pos.y + vel < -4) {
+        pos.y += vel;
+        
+        // Retract cable
+        var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
+        cabo_de_aco.position.y += vel/2;
+        cabo_de_aco.scale.y -= vel/2;
+    }
+
+    if (!diff_angle && !diff_dist) // If the block is already aligned with the container
+        animation.phase = 2;
+}
+
+function updatePhase2(delta_t) {
+    'use strict';
+
+    var ref_carrinho = grua.getObjectByName("ref_carrinho");
+    var ref_bloco = grua.getObjectByName("ref_bloco");
+
+    var vel = -1 * DOF.bloco.step * delta_t;
+    var pos = ref_bloco.position;
+
+    if (pos.y + vel > DOF.bloco.min + G.contentor.h) {
+        pos.y += vel;
+        
+        // Extend cable
+        var cabo_de_aco = ref_carrinho.getObjectByName("cabo_de_aco");
+        cabo_de_aco.position.y += vel/2;
+        cabo_de_aco.scale.y -= vel/2;
+    }
+    else { // If the block is already lowered
+        animation.phase = 3;
+    }
+}
+
+function updatePhase3(delta_t) {
+    'use strict';
+
+    var ref_bloco = grua.getObjectByName("ref_bloco");
+
+    if (DOF.dedo.cur_angle > 0) {
+        var vel = -1 * DOF.dedo.step * delta_t;
+        for (var i = 1; i <= 4; i++) {
+            var dedo = ref_bloco.getObjectByName('dedo' + i);
+            if (dedo) {
+                dedo.rotateOnAxis(new THREE.Vector3(-1, 0, 0), vel);
+            }
+        }
+        DOF.dedo.cur_angle += vel;
+    }
+    else { // If fingers are open
+        ref_bloco.remove(animation.carriedObject);
+        var index = objects.indexOf(animation.carriedObject);
+        objects.splice(index, 1); // Remove object from objects array
+        
+        animation.running = false; // End of animation
+        animation.phase = 0;
+        animation.carriedObject = null;
     }
 }
 
