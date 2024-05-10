@@ -198,7 +198,7 @@ function createRefEixo() {
     components.portaLancaBase.position.set(0, G.portaLancaBase.h/2, 0);
 
     components.portaLancaTopo.position.set(0, G.portaLancaBase.h + G.lanca.h, 0);
-    components.portaLancaTopo.rotateY(-Math.PI/2); // TODO: alterar posição
+    components.portaLancaTopo.rotateY(-Math.PI/2);
 
     components.cabine.position.set(0, G.cabine.h/2 + G.cabine.d, G.torre.l/2 + G.cabine.w/2);
 
@@ -424,7 +424,6 @@ function update(delta_t){
     if (animation.running) { // Animation-driven movement
         // Add object to ref_bloco
         if (!animation.carriedObject.parent || animation.carriedObject.parent !== ref_bloco) {
-            // TODO: apply change of basis to preserve object's relative position to the block
             ref_bloco.add(animation.carriedObject);
             var obj_radius = animation.carriedObject.geometry.parameters.radius || Math.max(animation.carriedObject.geometry.parameters.width,
                                                                                             animation.carriedObject.geometry.parameters.height,
@@ -707,9 +706,11 @@ function onResize() {
 function onKeyDown(e) {
     'use strict';
 
-    switch (e.keyCode) {
-        // TODO: aplicar mudanças sobre graus de liberdade em vez de atributos do referencial
+    if (animation.running) {
+        return;
+    }
 
+    switch (e.keyCode) {
         case 113: // q
         case 81:  // Q   
             DOF.eixo.vel[0] = -1; // rotate in the negative direction
