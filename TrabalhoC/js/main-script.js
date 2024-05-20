@@ -9,6 +9,9 @@ import { ParametricGeometry } from "three/addons/geometries/ParametricGeometry.j
 /* GLOBAL VARIABLES */
 //////////////////////
 var carousel, renderer, camera, scene, controls, clock;
+var directionalLight, ambientLight, pointLights = [], spotLights = [];
+var isDirectionalLightOn = true, isPointLightsOn = true, isSpotLightsOn = true;
+
 
 //////////////////////
 /* GLOBAL CONSTANTS */
@@ -90,6 +93,44 @@ function createCamera() {
 /////////////////////
 /* CREATE LIGHT(S) */
 /////////////////////
+function createGlobalLights() {
+    'use strict';
+    // Directional light
+    directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(20, 20, 20);
+    scene.add(directionalLight);
+
+    // Ambient light
+    ambientLight = new THREE.AmbientLight(0xffa500, 1);
+    scene.add(ambientLight);
+}
+
+function createPointLights() {
+    'use strict';
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const light = new THREE.PointLight(0xffffff, 0.5, 10);
+        light.position.set(
+            Math.cos(angle) * G.mobiusStrip.radius,
+            G.cylinder.height + G.mobiusStrip.width / 2 + G.mobiusStrip.d_cylinder,
+            Math.sin(angle) * G.mobiusStrip.radius
+        );
+        scene.add(light);
+        pointLights.push(light);
+    }
+}
+
+function createSpotlight(position) {
+    'use strict';
+    const spotlight = new THREE.SpotLight(0xffffff, 0.5, 50, Math.PI / 4, 0.1, 2);
+    spotlight.position.set(position.x, position.y, position.z);
+    spotlight.target.position.set(position.x, position.y + 100, position.z);  // Aim the light upward TODO: keep it at 100 or lower it?
+
+    scene.add(spotlight);
+    scene.add(spotlight.target);
+
+    spotLights.push(spotlight);
+}
 
 ////////////////////////
 /* CREATE OBJECT3D(S) */
@@ -113,6 +154,8 @@ function createCarousel() {
         G.mobiusStrip.width, G.mobiusStrip.segments, G.mobiusStrip.tubularSegments), M.mobiusStrip);
     mobiusStrip.position.set(0, G.cylinder.height + G.mobiusStrip.width/2 + G.mobiusStrip.d_cylinder, 0);
     mobiusStrip.rotation.x = Math.PI / 2;
+
+    createPointLights();
     
     carousel.add(mobiusStrip);
 
@@ -144,8 +187,9 @@ function createCarousel() {
             var angle = j * Math.PI / 4;
             var r = (G.rings.radius[i] + G.rings.radius[i-1]) / 2;
             var surf_height = 1.5; // TODO how to get this value properly?
-            var vector = new THREE.Vector3(r * Math.cos(angle), G.rings.height + surf_height/2, r * Math.sin(angle));
-            var surf = addParametricGeometry(surfs[j].func, 50, 50, vector, surfs[j].scale);
+            var position = new THREE.Vector3(r * Math.cos(angle), G.rings.height + surf_height/2, r * Math.sin(angle));
+            var surf = addParametricGeometry(surfs[j].func, 50, 50, position, surfs[j].scale);
+            createSpotlight(position);
 
             ref_rings[i].add(surf);
         }
@@ -209,6 +253,21 @@ function handleCollisions(){
 function update(delta_t) {
     'use strict';
 
+    // Update lights visibility
+    if (isDirectionalLightOn) {
+        directionalLight.visible = true;
+    } else {
+        directionalLight.visible = false;
+    }
+
+    pointLights.forEach(light => {
+        light.visible = isPointLightsOn;
+    });
+
+    spotLights.forEach(light => {
+        light.visible = isSpotLightsOn;
+    });
+
     // Update carousel rotation
     carousel.rotation.y += DOF.carousel.vel * DOF.carousel.step * delta_t;
 
@@ -257,6 +316,7 @@ function init() {
 
     createScene();
     createCamera();
+    createGlobalLights();
 
     // window.addEventListener("resize", onResize); TODO
     window.addEventListener("keydown", onKeyDown);
@@ -314,6 +374,18 @@ function onKeyDown(e) {
         case 51: // 3
             DOF.rings[2].vel = 1 - DOF.rings[2].vel;
             DOF.rings[2].pressed = true;
+            break;
+        case 68: // 'D'
+        case 100: // 'd'
+            isDirectionalLightOn = !isDirectionalLightOn;
+            break;
+        case 80: // 'P'
+        case 112: // 'p'
+            isPointLightsOn = !isPointLightsOn;
+            break;
+        case 83: // 'S'
+        case 115: // 's'
+            isSpotLightsOn = !isSpotLightsOn;
             break;
         default:
             break;
@@ -392,6 +464,7 @@ function createExtrudedRingGeometry(innerRadius, outerRadius, height) {
     const extrudeSettings = {
         depth: height,
         bevelEnabled: false,
+        curveSegments: 100,
     };
 
     return new THREE.ExtrudeGeometry(shape, extrudeSettings);
