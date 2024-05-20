@@ -38,6 +38,23 @@ const M = Object.freeze({ // Material constants
     parametricSurface: new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }),
 });
 
+const DOF = Object.freeze({ // Degrees of freedom
+    carousel: { vel: 1, step: 0.2 },
+    rings: [
+        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
+    ],
+});
+
+const keyListItems = document.querySelectorAll('#key-list li');
+
+const codeToKey = {
+    49: '1',
+    50: '2',
+    51: '3',
+};
+
 /////////////////////
 /* CREATE SCENE(S) */
 /////////////////////
@@ -105,7 +122,7 @@ function createCarousel() {
 
     for (let i = 1; i <= 3; i++) {
         ref_rings[i] = new THREE.Object3D();
-        ref_rings[i].name = 'ring' + i;
+        ref_rings[i].name = 'ref_ring_' + i;
         ref_rings[i].position.set(0, 0, 0);
 
         var geometry = createExtrudedRingGeometry(G.rings.radius[i-1], G.rings.radius[i], G.rings.height);
@@ -189,9 +206,31 @@ function handleCollisions(){
 ////////////
 /* UPDATE */
 ////////////
-function update(){
+function update(delta_t) {
     'use strict';
-    
+
+    // Update carousel rotation
+    carousel.rotation.y += DOF.carousel.vel * DOF.carousel.step * delta_t;
+
+    // Update rings position
+
+    for (let i = 1; i <= 3; i++) {
+        const ref_ring = carousel.getObjectByName('ref_ring_' + i);
+        const pos = ref_ring.position.y;
+        const step = DOF.rings[i-1].step;
+
+        const vel = DOF.rings[i-1].vel * step * delta_t;
+
+        if (pos + vel > DOF.rings[i-1].max) {
+            DOF.rings[i-1].vel = -1;
+        }
+
+        if (pos + vel < DOF.rings[i-1].min) {
+            DOF.rings[i-1].vel = 1;
+        }
+
+        ref_ring.position.y += vel;
+    } 
 }
 
 /////////////
@@ -219,6 +258,8 @@ function init() {
     createScene();
     createCamera();
 
+    // window.addEventListener("resize", onResize); TODO
+    window.addEventListener("keydown", onKeyDown);
 }
 
 /////////////////////
@@ -227,14 +268,15 @@ function init() {
 function animate() {
     'use strict';
 
-    requestAnimationFrame(animate);
+    var delta_t = clock.getDelta();
 
-    update();
+    update(delta_t);
 
     render();
 
     controls.update();
 
+    requestAnimationFrame(animate);
 }
 
 ////////////////////////////
@@ -252,6 +294,30 @@ function onResize() {
 function onKeyDown(e) {
     'use strict';
 
+    keyListItems.forEach(item => {
+        const listItemKey = item.getAttribute('data-key');
+        if (listItemKey === codeToKey[e.keyCode]
+            && !item.classList.contains('key-pressed')) {
+            item.classList.add('key-pressed');
+        }
+    });
+
+    switch (e.keyCode) {
+        case 49: // 1
+            DOF.rings[0].vel = 1 - DOF.rings[0].vel; // Toggle velocity
+            DOF.rings[0].pressed = true;
+            break;
+        case 50: // 2
+            DOF.rings[1].vel = 1 - DOF.rings[1].vel;
+            DOF.rings[1].pressed = true;
+            break;
+        case 51: // 3
+            DOF.rings[2].vel = 1 - DOF.rings[2].vel;
+            DOF.rings[2].pressed = true;
+            break;
+        default:
+            break;
+    }
 }
 
 ///////////////////////
