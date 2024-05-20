@@ -14,11 +14,19 @@ var carousel, renderer, camera, scene, controls, clock;
 /* GLOBAL CONSTANTS */
 //////////////////////
 const G = Object.freeze({ // Geometry constants
-    cylinder: { radius: 0.5, height: 10, radialSegments: 32 },
-    ring1: { innerRadius: 0.5, outerRadius: 2.5, thetaSegments: 32 },
-    ring2: { innerRadius: 2.5, outerRadius: 4.5, thetaSegments: 32 },
-    ring3: { innerRadius: 4.5, outerRadius: 6.5, thetaSegments: 32 },
-    mobiusStrip: { radius: 3, width: 1, segments: 100, tubularSegments: 50, d_cylinder: 1.5}
+    cylinder: { radius: 0.5, height: 12, radialSegments: 32 },
+    rings: { radius: [0.5, 5, 7.5, 10], height: 0.5, thetaSegments: 32 },
+    mobiusStrip: { radius: 3, width: 1, segments: 100, tubularSegments: 50, d_cylinder: 1.5},
+    paramSurfaces: [
+        { func: cylindricalSurface, scale: 0.6 },
+        { func: hyperboloid, scale: 0.05 },
+        { func: sineSurface, scale: 0.05 },
+        { func: twistedCone, scale: 0.6 },
+        { func: saddleSurface, scale: 0.6 },
+        { func: flaredCylinder, scale: 0.6 },
+        { func: wavyCylinder, scale: 0.6 },
+        { func: hyperboloidOfOneSheet, scale: 0.4 },
+    ],
 });
 
 const M = Object.freeze({ // Material constants
@@ -45,109 +53,6 @@ function createScene() {
     
     carousel = createCarousel();
     createSkydome();
-
-    // TODO: remove the following code from here and place in createCarousel()
-    
-    function cylindricalSurface(u, v, target) {
-        const height = 2;
-        const radius = 0.5;
-        const x = radius * Math.cos(v * 2 * Math.PI);
-        const y = radius * Math.sin(v * 2 * Math.PI);
-        const z = height * (u - 0.5);
-        target.set(x, y, z);
-    }
-
-    function hyperboloid(u, v, target) {
-        u *= Math.PI;
-        v *= 2 * Math.PI;
-        const x = Math.cosh(u) * Math.cos(v);
-        const y = Math.cosh(u) * Math.sin(v);
-        const z = Math.sinh(u);
-        target.set(x, y, z);
-    }
-    
-    function sineSurface(u, v, target) {
-        const x = u * 20 - 10;
-        const y = Math.sin(u * Math.PI * 2) * Math.cos(v * Math.PI * 2) * 5;
-        const z = v * 20 - 10;
-        target.set(x, y, z);
-    }
-    
-    function twistedCone(u, v, target) {
-        const height = 2;
-        const twist = 5;
-        const radius = 1 - u;
-        const x = radius * Math.cos(v * 2 * Math.PI + u * twist * Math.PI);
-        const y = radius * Math.sin(v * 2 * Math.PI + u * twist * Math.PI);
-        const z = height * u;
-        target.set(x, y, z);
-    }
-    
-    function saddleSurface(u, v, target) {
-        const width = 2;
-        const x = width * (u - 0.5);
-        const y = width * (v - 0.5);
-        const z = x * y;
-        target.set(x, y, z);
-    }
-    
-    function flaredCylinder(u, v, target) {
-        const height = 2;
-        const baseRadius = 0.5;
-        const topRadius = 1;
-        const radius = baseRadius + (topRadius - baseRadius) * u;
-        const x = radius * Math.cos(v * 2 * Math.PI);
-        const y = radius * Math.sin(v * 2 * Math.PI);
-        const z = height * (u - 0.5);
-        target.set(x, y, z);
-    }
-
-    function wavyCylinder(u, v, target) {
-        const height = 2;
-        const baseRadius = 0.5;
-    
-        // Convert v from [0, 1] to [0, 2*PI] for full rotation
-        const theta = v * 2 * Math.PI;
-    
-        const waveAmplitude = 0.1;
-        const waveFrequency = 3;
-    
-        // Radius varies with a sinusoidal wave at both ends
-        const radius = baseRadius + waveAmplitude * Math.sin(waveFrequency * theta);
-    
-        const x = radius * Math.cos(theta);
-        const y = radius * Math.sin(theta);
-        const z = height * (u - 0.5);
-    
-        target.set(x, y, z);
-    }
-
-    function hyperboloidOfOneSheet(u, v, target) {
-        const a = 1;
-        const b = 2;
-    
-        // u is the angular coordinate, v ranges linearly along the straight lines
-        const angle = 2 * Math.PI * u;
-        const z = 2 * (v - 0.5); // Scale v to range from -1 to 1
-    
-        const pinchFactor = 0.5; // Controls the degree of inward curvature
-        const factor = Math.sqrt(z * z + pinchFactor);
-    
-        const x = a * factor * Math.cos(angle);
-        const y = a * factor * Math.sin(angle);
-    
-        target.set(x, y, b * z);
-    }
-    
-    addParametricGeometry(cylindricalSurface, 50, 50, new THREE.Vector3(2.5, 0, -2.5), 0.6);
-    addParametricGeometry(hyperboloid, 50, 50, new THREE.Vector3(-5, 0, -5), 0.05);
-    addParametricGeometry(sineSurface, 50, 50, new THREE.Vector3(5, 0, 0), 0.05);
-    addParametricGeometry(twistedCone, 50, 50, new THREE.Vector3(5, 0, 5), 0.6);
-    addParametricGeometry(saddleSurface, 50, 50, new THREE.Vector3(-5, 0, 5), 0.6);
-    addParametricGeometry(flaredCylinder, 50, 50, new THREE.Vector3(5, 0, 2.5), 0.6);
-    addParametricGeometry(wavyCylinder, 50, 50, new THREE.Vector3(5, 0, -5), 0.6);
-    addParametricGeometry(hyperboloidOfOneSheet, 50, 50, new THREE.Vector3(-5, 0, 2.5), 0.6);
-
 }
 
 //////////////////////
@@ -177,46 +82,62 @@ function createCarousel() {
     
     var carousel = new THREE.Object3D();
     
+    // Cylinder
+
     const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(G.cylinder.radius,
-        G.cylinder.radius, G.cylinder.height, G.cylinder.radialSegments), M.cylinder);
-        cylinder.position.set(0, G.cylinder.height/2, 0);
-        
-        // Ring 1
-        const ring1 = new THREE.Mesh(new THREE.RingGeometry(G.ring1.innerRadius,
-            G.ring1.outerRadius, G.ring1.thetaSegments), M.ring1);
-            ring1.position.set(0, 0, 0);
-            ring1.rotation.x = Math.PI / 2;
-            
-            // Ring 2
-            const ring2 = new THREE.Mesh(new THREE.RingGeometry(G.ring2.innerRadius,
-                G.ring2.outerRadius, G.ring2.thetaSegments), M.ring2);
-                ring2.position.set(0, 0, 0);
-                ring2.rotation.x = Math.PI / 2;
-                
-                // Ring 3
-                const ring3 = new THREE.Mesh(new THREE.RingGeometry(G.ring3.innerRadius,
-                    G.ring3.outerRadius, G.ring3.thetaSegments), M.ring3);
-                    ring3.position.set(0, 0, 0);
-                    ring3.rotation.x = Math.PI / 2;
-                    
-                    // Mobius strip
-                    const mobiusStrip=  new THREE.Mesh(MobiusStripGeometry(G.mobiusStrip.radius,
-                        G.mobiusStrip.width, G.mobiusStrip.segments, G.mobiusStrip.tubularSegments), M.mobiusStrip);
-                        mobiusStrip.position.set(0, G.cylinder.height + G.mobiusStrip.width/2 + G.mobiusStrip.d_cylinder, 0);
-                        mobiusStrip.rotation.x = Math.PI / 2;
-                        
-                        carousel.add(cylinder);
-                        
-                        carousel.add(ring1);
-                        carousel.add(ring2);
-                        carousel.add(ring3);
-                        
-                        carousel.add(mobiusStrip);
-                        
-                        scene.add(carousel);
-                        
-                        return carousel;
-                    }
+    G.cylinder.radius, G.cylinder.height, G.cylinder.radialSegments), M.cylinder);
+    cylinder.position.set(0, G.cylinder.height/2, 0);
+
+    carousel.add(cylinder);
+
+    // Mobius strip
+
+    const mobiusStrip =  new THREE.Mesh(MobiusStripGeometry(G.mobiusStrip.radius,
+        G.mobiusStrip.width, G.mobiusStrip.segments, G.mobiusStrip.tubularSegments), M.mobiusStrip);
+    mobiusStrip.position.set(0, G.cylinder.height + G.mobiusStrip.width/2 + G.mobiusStrip.d_cylinder, 0);
+    mobiusStrip.rotation.x = Math.PI / 2;
+    
+    carousel.add(mobiusStrip);
+
+    // Rings
+
+    var ref_rings = {};
+
+    for (let i = 1; i <= 3; i++) {
+        ref_rings[i] = new THREE.Object3D();
+        ref_rings[i].name = 'ring' + i;
+        ref_rings[i].position.set(0, 0, 0);
+
+        var geometry = createExtrudedRingGeometry(G.rings.radius[i-1], G.rings.radius[i], G.rings.height);
+        var ring = new THREE.Mesh(geometry, M['ring' + i]);
+
+        ring.position.set(0, 0, 0);
+        ring.rotation.x = -Math.PI / 2;
+
+        ref_rings[i].add(ring);
+
+        carousel.add(ref_rings[i]);
+    }
+
+    // Parametric surfaces
+    for (let i = 1; i <= 3; i++) { // For each ring
+        // Randomize list order
+        var surfs = G.paramSurfaces.slice().sort(() => Math.random() - 0.5);
+        for (let j = 0; j < 8; j++) { // Instantiate 8 parametric geometries
+            var angle = j * Math.PI / 4;
+            var r = (G.rings.radius[i] + G.rings.radius[i-1]) / 2;
+            var surf_height = 1.5; // TODO how to get this value properly?
+            var vector = new THREE.Vector3(r * Math.cos(angle), G.rings.height + surf_height/2, r * Math.sin(angle));
+            var surf = addParametricGeometry(surfs[j].func, 50, 50, vector, surfs[j].scale);
+
+            ref_rings[i].add(surf);
+        }
+    }
+    
+    scene.add(carousel);
+    
+    return carousel;
+}
                     
 function createSkydome() {
     // Load the texture
@@ -240,7 +161,13 @@ function addParametricGeometry(func, slices, stacks, position, scale) {
     const mesh = new THREE.Mesh(geometry, M.parametricSurface);
     mesh.position.copy(position);
     mesh.scale.set(scale, scale, scale); // Scale down the geometry
-    scene.add(mesh);
+    
+    // Add random rotation
+    mesh.rotation.x = Math.random() * Math.PI;
+    mesh.rotation.y = Math.random() * Math.PI;
+    mesh.rotation.z = Math.random() * Math.PI;
+
+    return mesh;
 }
 
 //////////////////////
@@ -316,6 +243,7 @@ function animate() {
 function onResize() { 
     'use strict';
 
+    // TODO: implement window resize callback
 }
 
 ///////////////////////
@@ -384,6 +312,114 @@ function MobiusStripGeometry(radius, width, segments, tubularSegments) {
     mobiusGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
 
     return mobiusGeometry;
+}
+
+// Create an extruded ring geometry
+function createExtrudedRingGeometry(innerRadius, outerRadius, height) {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, outerRadius, 0, Math.PI * 2, false);
+
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
+    shape.holes.push(holePath);
+
+    const extrudeSettings = {
+        depth: height,
+        bevelEnabled: false,
+    };
+
+    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+}
+
+function cylindricalSurface(u, v, target) {
+    const height = 2;
+    const radius = 0.5;
+    const x = radius * Math.cos(v * 2 * Math.PI);
+    const y = radius * Math.sin(v * 2 * Math.PI);
+    const z = height * (u - 0.5);
+    target.set(x, y, z);
+}
+
+function hyperboloid(u, v, target) {
+    u *= Math.PI;
+    v *= 2 * Math.PI;
+    const x = Math.cosh(u) * Math.cos(v);
+    const y = Math.cosh(u) * Math.sin(v);
+    const z = Math.sinh(u);
+    target.set(x, y, z);
+}
+
+function sineSurface(u, v, target) {
+    const x = u * 20 - 10;
+    const y = Math.sin(u * Math.PI * 2) * Math.cos(v * Math.PI * 2) * 5;
+    const z = v * 20 - 10;
+    target.set(x, y, z);
+}
+
+function twistedCone(u, v, target) {
+    const height = 2;
+    const twist = 5;
+    const radius = 1 - u;
+    const x = radius * Math.cos(v * 2 * Math.PI + u * twist * Math.PI);
+    const y = radius * Math.sin(v * 2 * Math.PI + u * twist * Math.PI);
+    const z = height * u;
+    target.set(x, y, z);
+}
+
+function saddleSurface(u, v, target) {
+    const width = 2;
+    const x = width * (u - 0.5);
+    const y = width * (v - 0.5);
+    const z = x * y;
+    target.set(x, y, z);
+}
+
+function flaredCylinder(u, v, target) {
+    const height = 2;
+    const baseRadius = 0.5;
+    const topRadius = 1;
+    const radius = baseRadius + (topRadius - baseRadius) * u;
+    const x = radius * Math.cos(v * 2 * Math.PI);
+    const y = radius * Math.sin(v * 2 * Math.PI);
+    const z = height * (u - 0.5);
+    target.set(x, y, z);
+}
+
+function wavyCylinder(u, v, target) {
+    const height = 2;
+    const baseRadius = 0.5;
+
+    // Convert v from [0, 1] to [0, 2*PI] for full rotation
+    const theta = v * 2 * Math.PI;
+
+    const waveAmplitude = 0.1;
+    const waveFrequency = 3;
+
+    // Radius varies with a sinusoidal wave at both ends
+    const radius = baseRadius + waveAmplitude * Math.sin(waveFrequency * theta);
+
+    const x = radius * Math.cos(theta);
+    const y = radius * Math.sin(theta);
+    const z = height * (u - 0.5);
+
+    target.set(x, y, z);
+}
+
+function hyperboloidOfOneSheet(u, v, target) {
+    const a = 1;
+    const b = 2;
+
+    // u is the angular coordinate, v ranges linearly along the straight lines
+    const angle = 2 * Math.PI * u;
+    const z = 2 * (v - 0.5); // Scale v to range from -1 to 1
+
+    const pinchFactor = 0.5; // Controls the degree of inward curvature
+    const factor = Math.sqrt(z * z + pinchFactor);
+
+    const x = a * factor * Math.cos(angle);
+    const y = a * factor * Math.sin(angle);
+
+    target.set(x, y, b * z);
 }
 
 init();
