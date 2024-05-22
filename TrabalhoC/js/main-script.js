@@ -332,6 +332,10 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    // VR
+    renderer.xr.enabled = true;
+    document.body.appendChild(VRButton.createButton(renderer));
+
     clock = new THREE.Clock();
 
     createScene();
@@ -356,7 +360,7 @@ function animate() {
 
     controls.update();
 
-    requestAnimationFrame(animate);
+    renderer.setAnimationLoop(animate);
 }
 
 ////////////////////////////
@@ -443,8 +447,7 @@ function MobiusStripGeometry(radius, width, segments, tubularSegments) {
 
             vertices.push(x, y, z);
 
-            // Normal and UV calculations are omitted for simplicity
-            // but they should be added for proper lighting and texturing
+            // TODO calculate normals
             normals.push(0, 0, 1);
             uvs.push(i / segments, j / tubularSegments);
         }
