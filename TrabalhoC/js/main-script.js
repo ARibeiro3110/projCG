@@ -44,9 +44,9 @@ const M = Object.freeze({ // Material constants
 const DOF = Object.freeze({ // Degrees of freedom
     carousel: { vel: 1, step: 0.1 },
     rings: [
-        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
-        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
-        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
+        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
     ],
     surfaces : new Array(24).fill({ vel: 1, step: Math.random() * 0.4 + 0.6, axis: new THREE.Vector3(Math.random(), Math.random(), Math.random()) }),
 });
@@ -277,18 +277,9 @@ function update(delta_t) {
 
     for (let i = 1; i <= 3; i++) {
         const ref_ring = carousel.getObjectByName('ref_ring_' + i);
-        const pos = ref_ring.position.y;
         const DOF_ring = DOF.rings[i-1];
 
-        const vel = DOF_ring.vel * DOF_ring.dir * DOF_ring.step * delta_t;
-
-        if (pos + vel > DOF.rings[i-1].max) {
-            DOF.rings[i-1].dir = -1;
-        }
-
-        if (pos + vel < DOF.rings[i-1].min) {
-            DOF.rings[i-1].dir = 1;
-        }
+        const vel = DOF_ring.vel * DOF_ring.step * delta_t;
         
         // Oscillate the ring up and down
         const midpoint = (DOF_ring.max + DOF_ring.min) / 2;
