@@ -42,12 +42,13 @@ const M = Object.freeze({ // Material constants
 });
 
 const DOF = Object.freeze({ // Degrees of freedom
-    carousel: { vel: 1, step: 0.2 },
+    carousel: { vel: 1, step: 0.1 },
     rings: [
         { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
         { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
         { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
     ],
+    surfaces : new Array(24).fill({ vel: 1, step: Math.random() * 0.4 + 0.6, axis: new THREE.Vector3(Math.random(), Math.random(), Math.random()) }),
 });
 
 const keyListItems = document.querySelectorAll('#key-list li');
@@ -180,6 +181,7 @@ function createCarousel() {
     }
 
     // Parametric surfaces
+
     for (let i = 1; i <= 3; i++) { // For each ring
         // Randomize list order
         var surfs = G.paramSurfaces.slice().sort(() => Math.random() - 0.5);
@@ -287,9 +289,36 @@ function update(delta_t) {
         if (pos + vel < DOF.rings[i-1].min) {
             DOF.rings[i-1].dir = 1;
         }
+        
+        // Oscillate the ring up and down
+        const midpoint = (DOF_ring.max + DOF_ring.min) / 2;
+        const amplitude = (DOF_ring.max - DOF_ring.min) / 2;
 
-        ref_ring.position.y += vel;
-    } 
+        const angle = Math.asin((ref_ring.position.y - midpoint) / amplitude);
+
+        const newAngle = angle + vel / amplitude;
+
+        ref_ring.position.y = midpoint + amplitude * Math.sin(newAngle);
+    }
+
+    // Update parametric surfaces
+
+    carousel.children.forEach(child => {
+        if (child.name === 'ref_ring_1' || child.name === 'ref_ring_2' || child.name === 'ref_ring_3') {
+            // Remove first child (the ring) and keep the parametric surfaces
+            const surfs = child.children.slice(1);
+            surfs.forEach((surf, i) => {
+                const DOF_surf = DOF.surfaces[i];
+                const axis = DOF_surf.axis;
+                const vel = DOF_surf.vel * DOF_surf.step * delta_t;
+
+                surf.rotation.x += vel * axis.x;
+                surf.rotation.y += vel * axis.y;
+                surf.rotation.z += vel * axis.z;
+            });
+        }
+    })
+
 }
 
 /////////////
