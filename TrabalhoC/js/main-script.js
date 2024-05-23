@@ -11,7 +11,9 @@ import { ParametricGeometry } from "three/addons/geometries/ParametricGeometry.j
 var carousel, renderer, camera, scene, controls, clock;
 var directionalLight, ambientLight, pointLights = [], spotLights = [];
 var isDirectionalLightOn = true, isPointLightsOn = true, isSpotLightsOn = true;
-
+var currentMaterialType = 'lambert'; // Default material type  TODO: check this
+var shouldUpdateMaterials = false; 
+const meshes = [];
 
 //////////////////////
 /* GLOBAL CONSTANTS */
@@ -28,18 +30,26 @@ const G = Object.freeze({ // Geometry constants
         { func: saddleSurface, scale: 0.6 },
         { func: flaredCylinder, scale: 0.6 },
         { func: wavyCylinder, scale: 0.6 },
-        { func: hyperboloidOfOneSheet, scale: 0.4 },
+        { func: hyperboloidOfOneSheet, scale: 0.3 },
     ],
 });
 
-const M = Object.freeze({ // Material constants
-    cylinder: new THREE.MeshBasicMaterial({color: 0x00FF00}),
-    ring1: new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide }),
-    ring2: new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide }),
-    ring3: new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide }),
-    mobiusStrip: new THREE.MeshBasicMaterial({ color: 0xff0055, side: THREE.DoubleSide }),
-    parametricSurface: new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }),
-});
+const MaterialTypes = {
+    lambert: (color) => new THREE.MeshLambertMaterial({ color: color, side: THREE.DoubleSide }),
+    phong: (color) => new THREE.MeshPhongMaterial({ color: color, specular: 0x555555, shininess: 30, side: THREE.DoubleSide }),
+    toon: (color) => new THREE.MeshToonMaterial({ color: color, side: THREE.DoubleSide }),
+    normal: () => new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }),
+    basic: (color) => new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide }),
+};
+
+const materialColors = {
+    cylinder: 0x00FF00,
+    ring1: 0xffff00,
+    ring2: 0xff0000,
+    ring3: 0x0000ff,
+    mobiusStrip: 0xff0055,
+    parametricSurface: 0x00ff55,
+};
 
 const DOF = Object.freeze({ // Degrees of freedom
     carousel: { vel: 1, step: 0.1 },
@@ -70,7 +80,7 @@ function createScene() {
     scene.add(new THREE.AxesHelper(10));
     
     // background color
-    scene.background = new THREE.Color(0xFFFFFF);
+    scene.background = new THREE.Color(0xE3E0E0);
     
     carousel = createCarousel();
     createSkydome();
@@ -83,7 +93,7 @@ function createCamera() {
     'use strict';
     
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-    camera.position.set(20, 20, 20);
+    camera.position.set(30, 20, 30);
     camera.lookAt(scene.position);
     
     scene.add(camera);
@@ -99,6 +109,7 @@ function createGlobalLights() {
     // Directional light
     directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(20, 20, 20);
+    directionalLight.target.position.set(0, 0, 0);
     scene.add(directionalLight);
 
     // Ambient light
@@ -106,7 +117,7 @@ function createGlobalLights() {
     scene.add(ambientLight);
 }
 
-function createPointLights() {
+function createPointLights(carousel) {
     'use strict';
     for (let i = 0; i < 8; i++) {
         const angle = (i / 8) * Math.PI * 2;
@@ -116,19 +127,19 @@ function createPointLights() {
             G.cylinder.height + G.mobiusStrip.width / 2 + G.mobiusStrip.d_cylinder,
             Math.sin(angle) * G.mobiusStrip.radius
         );
-        scene.add(light);
+        carousel.add(light);
         pointLights.push(light);
     }
 }
 
-function createSpotlight(position) {
+function createSpotlight(position, ring) {
     'use strict';
-    const spotlight = new THREE.SpotLight(0xffffff, 0.5, 50, Math.PI / 4, 0.1, 2);
-    spotlight.position.set(position.x, position.y, position.z);
+    const spotlight = new THREE.SpotLight(0xffffff, 1, 50, Math.PI / 2 , 0.5, 2);
+    spotlight.position.set(position.x, G.rings.height, position.z);
     spotlight.target.position.set(position.x, position.y + 100, position.z);  // Aim the light upward TODO: keep it at 100 or lower it?
 
-    scene.add(spotlight);
-    scene.add(spotlight.target);
+    ring.add(spotlight);
+    ring.add(spotlight.target);
 
     spotLights.push(spotlight);
 }
@@ -143,20 +154,20 @@ function createCarousel() {
     
     // Cylinder
 
-    const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(G.cylinder.radius,
-    G.cylinder.radius, G.cylinder.height, G.cylinder.radialSegments), M.cylinder);
+    const cylinder = createMesh('cylinder', new THREE.CylinderGeometry(G.cylinder.radius,
+        G.cylinder.radius, G.cylinder.height, G.cylinder.radialSegments));
     cylinder.position.set(0, G.cylinder.height/2, 0);
 
     carousel.add(cylinder);
 
     // Mobius strip
 
-    const mobiusStrip =  new THREE.Mesh(MobiusStripGeometry(G.mobiusStrip.radius,
-        G.mobiusStrip.width, G.mobiusStrip.segments, G.mobiusStrip.tubularSegments), M.mobiusStrip);
+    const mobiusStrip =  createMesh('mobiusStrip', MobiusStripGeometry(G.mobiusStrip.radius,
+        G.mobiusStrip.width, G.mobiusStrip.segments, G.mobiusStrip.tubularSegments));
     mobiusStrip.position.set(0, G.cylinder.height + G.mobiusStrip.width/2 + G.mobiusStrip.d_cylinder, 0);
     mobiusStrip.rotation.x = Math.PI / 2;
 
-    createPointLights();
+    createPointLights(carousel);
     
     carousel.add(mobiusStrip);
 
@@ -170,7 +181,7 @@ function createCarousel() {
         ref_rings[i].position.set(0, 0, 0);
 
         var geometry = createExtrudedRingGeometry(G.rings.radius[i-1], G.rings.radius[i], G.rings.height);
-        var ring = new THREE.Mesh(geometry, M['ring' + i]);
+        var ring = createMesh('ring' + i, geometry);
 
         ring.position.set(0, 0, 0);
         ring.rotation.x = -Math.PI / 2;
@@ -191,7 +202,7 @@ function createCarousel() {
             var surf_height = 1.5; // TODO how to get this value properly?
             var position = new THREE.Vector3(r * Math.cos(angle), G.rings.height + surf_height/2, r * Math.sin(angle));
             var surf = addParametricGeometry(surfs[j].func, 50, 50, position, surfs[j].scale);
-            createSpotlight(position);
+            createSpotlight(position, ref_rings[i]);
 
             ref_rings[i].add(surf);
         }
@@ -203,25 +214,36 @@ function createCarousel() {
 }
                     
 function createSkydome() {
-    // Load the texture
+    // Load the textures
     const loader = new THREE.TextureLoader();
-    loader.load('skydome.png', function (texture) {
-        const geometry = new THREE.SphereGeometry(100, 60, 40, 0, Math.PI * 2, 0, Math.PI/2);
-        // sphere geometry arguments: 
-        const material = new THREE.MeshBasicMaterial({
-            map: texture,
-            side: THREE.BackSide // Dome must be visible from the inside
-        });
-        
-        const dome = new THREE.Mesh(geometry, material);
-        dome.position.set(0, 0, 0);
-        scene.add(dome);
+    
+    // Load the main map, bump map, and displacement map
+    const map = loader.load('skydome.png');
+    const bmap = loader.load('skydome-bump.png');
+    const dmap = loader.load('skydome-displacement.png');
+    
+    const geometry = new THREE.SphereGeometry(30, 60, 40, 0, Math.PI * 2, 0, Math.PI / 2);
+    
+    // Create the material with multiple textures
+    const material = new THREE.MeshPhongMaterial({
+        bumpMap: bmap,
+        bumpScale: 1.3,
+        displacementMap: dmap,
+        displacementScale: 1,
+        side: THREE.BackSide, // Dome must be visible from the inside
+        map: map
     });
+    
+    const dome = new THREE.Mesh(geometry, material);
+    dome.position.set(0, 0, 0);
+    
+    scene.add(dome);
 }
+
 
 function addParametricGeometry(func, slices, stacks, position, scale) {
     const geometry = new ParametricGeometry(func, slices, stacks);
-    const mesh = new THREE.Mesh(geometry, M.parametricSurface);
+    const mesh = createMesh('parametricSurface', geometry);
     mesh.position.copy(position);
     mesh.scale.set(scale, scale, scale); // Scale down the geometry
     
@@ -315,6 +337,11 @@ function update(delta_t) {
             });
         }
     })
+
+    if (shouldUpdateMaterials) {
+        meshes.forEach((mesh) => (mesh.material = mesh.userData.materials[currentMaterialType]));      
+        shouldUpdateMaterials = false;
+    }
 
 }
 
@@ -415,6 +442,31 @@ function onKeyDown(e) {
         case 115: // 's'
             isSpotLightsOn = !isSpotLightsOn;
             break;
+        case 81: // 'Q'
+        case 113:
+            currentMaterialType = 'lambert';
+            shouldUpdateMaterials = true;
+            break;
+        case 87: // 'W'
+        case 119: // 'w'
+            currentMaterialType = 'phong';
+            shouldUpdateMaterials = true;
+            break;
+        case 69: // 'E'
+        case 101: // 'e'
+            currentMaterialType = 'toon';
+            shouldUpdateMaterials = true;
+            break;
+        case 82: // 'R'
+        case 114: // 'r'
+            currentMaterialType = 'normal';
+            shouldUpdateMaterials = true;
+            break;
+        case 84:
+        case 116:
+            // Deactivate lighting calculations by using the basic material
+            currentMaterialType = 'basic';
+            shouldUpdateMaterials = true;
         default:
             break;
     }
@@ -430,6 +482,22 @@ function onKeyUp(e){
 ////////////////////////////
 /* AUXILIARY FUNCTIONS */
 ////////////////////////////
+function createMesh(name, geometry) {
+    const color = materialColors[name];
+    const materials = {
+        lambert: MaterialTypes.lambert(color),
+        phong: MaterialTypes.phong(color),
+        toon: MaterialTypes.toon(color),
+        normal: MaterialTypes.normal(),
+        basic: MaterialTypes.basic(color),
+    };
+    
+    const mesh = new THREE.Mesh(geometry, materials.lambert); // Default to Lambert TODO: check this
+    mesh.userData = { materials };
+    
+    meshes.push(mesh);
+    return mesh;
+}
 
 // Create the Mobius strip geometry
 function MobiusStripGeometry(radius, width, segments, tubularSegments) {
