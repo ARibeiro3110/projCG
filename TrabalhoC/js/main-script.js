@@ -8,12 +8,13 @@ import { ParametricGeometry } from "three/addons/geometries/ParametricGeometry.j
 //////////////////////
 /* GLOBAL VARIABLES */
 //////////////////////
-var carousel, renderer, camera, scene, controls, clock;
+var carousel, renderer, camera, defaultCamera, stereoCamera, scene, controls, clock;
 var directionalLight, ambientLight, pointLights = [], spotLights = [];
 var isDirectionalLightOn = true, isPointLightsOn = true, isSpotLightsOn = true;
 var currentMaterialType = 'lambert'; // Default material type  TODO: check this
 var shouldUpdateMaterials = false; 
 const meshes = [];
+var resized = false;
 
 //////////////////////
 /* GLOBAL CONSTANTS */
@@ -92,13 +93,18 @@ function createScene() {
 function createCamera() {
     'use strict';
     
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-    camera.position.set(30, 20, 30);
-    camera.lookAt(scene.position);
+    defaultCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+    defaultCamera.position.set(30, 20, 30);
+    defaultCamera.lookAt(scene.position);
     
-    scene.add(camera);
-    
-    controls = new OrbitControls(camera, renderer.domElement);
+    controls = new OrbitControls(defaultCamera, renderer.domElement);
+
+    // Stereo camera setup
+    stereoCamera = new THREE.StereoCamera();
+    stereoCamera.aspect = 0.5;
+    stereoCamera.eyeSep = 0.1; // Adjust this value to increase or decrease eye separation
+
+    return defaultCamera;
 }
 
 /////////////////////
@@ -343,6 +349,15 @@ function update(delta_t) {
         shouldUpdateMaterials = false;
     }
 
+    if (resized) {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        if(window.innerHeight > 0 && window.innerWidth > 0) {
+            camera.aspect = renderer.getSize().width / renderer.getSize().height;
+            camera.updateProjectionMatrix();
+        }
+    }
+
 }
 
 /////////////
@@ -351,6 +366,22 @@ function update(delta_t) {
 function render() {
     'use strict';
     renderer.render(scene, camera);
+
+    // Update stereo camera and render
+    //stereoCamera.update(camera);
+
+    // Render left eye
+    // renderer.setScissorTest(true);
+    // renderer.setScissor(0, 0, window.innerWidth / 2, window.innerHeight);
+    // renderer.setViewport(0, 0, window.innerWidth / 2, window.innerHeight);
+    // //renderer.render(scene, stereoCamera.cameraL);
+
+    // // Render right eye
+    // renderer.setScissor(window.innerWidth / 2, 0, window.innerWidth / 2, window.innerHeight);
+    // renderer.setViewport(window.innerWidth / 2, 0, window.innerWidth / 2, window.innerHeight);
+    // renderer.render(scene, stereoCamera.cameraR);
+
+    //renderer.setScissorTest(false);
 }
 
 ////////////////////////////////
@@ -366,16 +397,17 @@ function init() {
     document.body.appendChild(renderer.domElement);
 
     // VR
-    renderer.xr.enabled = true;
-    document.body.appendChild(VRButton.createButton(renderer));
+    // renderer.xr.enabled = true;
+    // document.body.appendChild(VRButton.createButton(renderer));
 
     clock = new THREE.Clock();
 
     createScene();
-    createCamera();
+    camera = createCamera();
+    scene.add(camera);
     createGlobalLights();
 
-    // window.addEventListener("resize", onResize); TODO
+    window.addEventListener("resize", onResize);
     window.addEventListener("keydown", onKeyDown);
 }
 
@@ -400,7 +432,8 @@ function animate() {
 /* RESIZE WINDOW CALLBACK */
 ////////////////////////////
 function onResize() { 
-    'use strict';
+    resized = true;
+
 }
 
 ///////////////////////
