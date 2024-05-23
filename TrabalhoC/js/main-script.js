@@ -38,7 +38,8 @@ const MaterialTypes = {
     lambert: (color) => new THREE.MeshLambertMaterial({ color: color, side: THREE.DoubleSide }),
     phong: (color) => new THREE.MeshPhongMaterial({ color: color, specular: 0x555555, shininess: 30, side: THREE.DoubleSide }),
     toon: (color) => new THREE.MeshToonMaterial({ color: color, side: THREE.DoubleSide }),
-    normal: () => new THREE.MeshNormalMaterial({ side: THREE.DoubleSide })
+    normal: () => new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }),
+    basic: (color) => new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide }),
 };
 
 const materialColors = {
@@ -457,6 +458,11 @@ function onKeyDown(e) {
             currentMaterialType = 'normal';
             shouldUpdateMaterials = true;
             break;
+        case 84:
+        case 116:
+            // Deactivate lighting calculations by using the basic material
+            currentMaterialType = 'basic';
+            shouldUpdateMaterials = true;
         default:
             break;
     }
@@ -478,7 +484,8 @@ function createMesh(name, geometry) {
         lambert: MaterialTypes.lambert(color),
         phong: MaterialTypes.phong(color),
         toon: MaterialTypes.toon(color),
-        normal: MaterialTypes.normal()
+        normal: MaterialTypes.normal(),
+        basic: MaterialTypes.basic(color),
     };
     
     const mesh = new THREE.Mesh(geometry, materials.lambert); // Default to Lambert TODO: check this
