@@ -44,9 +44,9 @@ const M = Object.freeze({ // Material constants
 const DOF = Object.freeze({ // Degrees of freedom
     carousel: { vel: 1, step: 0.1 },
     rings: [
-        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
-        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
-        { vel: 0, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
+        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
     ],
     surfaces : new Array(24).fill({ vel: 1, step: Math.random() * 0.4 + 0.6, axis: new THREE.Vector3(Math.random(), Math.random(), Math.random()) }),
 });
@@ -279,7 +279,7 @@ function update(delta_t) {
         const ref_ring = carousel.getObjectByName('ref_ring_' + i);
         const DOF_ring = DOF.rings[i-1];
 
-        const vel = DOF_ring.vel * DOF_ring.step * delta_t;
+        const vel = DOF_ring.vel * DOF_ring.dir * DOF_ring.step * delta_t;
         
         // Oscillate the ring up and down
         const midpoint = (DOF_ring.max + DOF_ring.min) / 2;
@@ -288,6 +288,12 @@ function update(delta_t) {
         const angle = Math.asin((ref_ring.position.y - midpoint) / amplitude);
 
         const newAngle = angle + vel / amplitude;
+
+        if (newAngle >= Math.PI / 2) {
+            DOF_ring.dir = -1;
+        } else if (newAngle <= -Math.PI / 2) {
+            DOF_ring.dir = 1;
+        }
 
         ref_ring.position.y = midpoint + amplitude * Math.sin(newAngle);
     }
@@ -368,8 +374,6 @@ function animate() {
 ////////////////////////////
 function onResize() { 
     'use strict';
-
-    // TODO: implement window resize callback
 }
 
 ///////////////////////
