@@ -8,11 +8,10 @@ import { ParametricGeometry } from "three/addons/geometries/ParametricGeometry.j
 //////////////////////
 /* GLOBAL VARIABLES */
 //////////////////////
-var carousel, renderer, camera, defaultCamera, stereoCamera, scene, controls, clock;
+var carousel, renderer, camera, scene, controls, clock;
 var directionalLight, ambientLight, pointLights = [], spotLights = [];
 var isDirectionalLightOn = true, isPointLightsOn = true, isSpotLightsOn = true;
-var currentMaterialType = 'lambert'; // Default material type  TODO: check this
-var shouldUpdateMaterials = false; 
+var currentMaterialType, shouldUpdateMaterials = false; 
 const meshes = [];
 var resized = false;
 
@@ -23,16 +22,19 @@ const G = Object.freeze({ // Geometry constants
     cylinder: { radius: 0.5, height: 12, radialSegments: 32 },
     rings: { radius: [0.5, 5, 7.5, 10], height: 0.5, thetaSegments: 32 },
     mobiusStrip: { radius: 3, width: 1, segments: 100, tubularSegments: 50, d_cylinder: 1.5},
-    paramSurfaces: [
-        { func: cylindricalSurface, scale: 0.6 },
-        { func: hyperboloid, scale: 0.05 },
-        { func: sineSurface, scale: 0.05 },
-        { func: twistedCone, scale: 0.6 },
-        { func: saddleSurface, scale: 0.6 },
-        { func: flaredCylinder, scale: 0.6 },
-        { func: wavyCylinder, scale: 0.6 },
-        { func: hyperboloidOfOneSheet, scale: 0.3 },
-    ],
+    paramSurfaces: {
+        surfaces: [
+            { func: cylindricalSurface, minScale: 0.5, maxScale: 0.7 },
+            { func: hyperboloid, minScale: 0.03, maxScale: 0.07 },
+            { func: sineSurface, minScale: 0.03, maxScale: 0.07 },
+            { func: twistedCone, minScale: 0.5, maxScale: 0.7 },
+            { func: saddleSurface, minScale: 0.5, maxScale: 0.7 },
+            { func: flaredCylinder, minScale: 0.5, maxScale: 0.7 },
+            { func: wavyCylinder, minScale: 0.5, maxScale: 0.7 },
+            { func: hyperboloidOfOneSheet, minScale: 0.2, maxScale: 0.3 },
+        ],
+        dist_ring: 1.3,
+    },
 });
 
 const MaterialTypes = {
@@ -44,12 +46,12 @@ const MaterialTypes = {
 };
 
 const materialColors = {
-    cylinder: 0x00FF00,
-    ring1: 0xffff00,
-    ring2: 0xff0000,
-    ring3: 0x0000ff,
-    mobiusStrip: 0xff0055,
-    parametricSurface: 0x00ff55,
+    cylinder: 0xa3d9f5,
+    ring1: 0x0d92e9,
+    ring2: 0x66bff0,
+    ring3: 0x0d92e9,
+    mobiusStrip: 0xFAFC97,
+    parametricSurface: 0xa0aeba,
 };
 
 const DOF = Object.freeze({ // Degrees of freedom
@@ -59,16 +61,8 @@ const DOF = Object.freeze({ // Degrees of freedom
         { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
         { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
     ],
-    surfaces : new Array(24).fill({ vel: 1, step: Math.random() * 0.4 + 0.6, axis: new THREE.Vector3(Math.random(), Math.random(), Math.random()) }),
+    surfaces : new Array(24).fill({ vel: 1, step: Math.random() * 0.6 + 0.6, axis: new THREE.Vector3(Math.random(), Math.random(), Math.random()) }),
 });
-
-const keyListItems = document.querySelectorAll('#key-list li');
-
-const codeToKey = {
-    49: '1',
-    50: '2',
-    51: '3',
-};
 
 /////////////////////
 /* CREATE SCENE(S) */
@@ -93,18 +87,13 @@ function createScene() {
 function createCamera() {
     'use strict';
     
-    defaultCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-    defaultCamera.position.set(30, 20, 30);
-    defaultCamera.lookAt(scene.position);
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+    camera.position.set(20, 20, 30);
+    camera.lookAt(scene.position);
     
-    controls = new OrbitControls(defaultCamera, renderer.domElement);
+    controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove orbit controls
 
-    // Stereo camera setup
-    stereoCamera = new THREE.StereoCamera();
-    stereoCamera.aspect = 0.5;
-    stereoCamera.eyeSep = 0.1; // Adjust this value to increase or decrease eye separation
-
-    return defaultCamera;
+    scene.add(camera);
 }
 
 /////////////////////
@@ -140,9 +129,9 @@ function createPointLights(carousel) {
 
 function createSpotlight(position, ring) {
     'use strict';
-    const spotlight = new THREE.SpotLight(0xffffff, 1, 50, Math.PI / 2 , 0.5, 2);
-    spotlight.position.set(position.x, G.rings.height, position.z);
-    spotlight.target.position.set(position.x, position.y + 100, position.z);  // Aim the light upward TODO: keep it at 100 or lower it?
+    const spotlight = new THREE.SpotLight(0xffffff, 2, 10, Math.PI / 2, 0.3, 2);
+    spotlight.position.set(position.x, position.y - G.paramSurfaces.dist_ring/2, position.z);
+    spotlight.target.position.set(position.x, position.y, position.z);
 
     ring.add(spotlight);
     ring.add(spotlight.target);
@@ -201,13 +190,14 @@ function createCarousel() {
 
     for (let i = 1; i <= 3; i++) { // For each ring
         // Randomize list order
-        var surfs = G.paramSurfaces.slice().sort(() => Math.random() - 0.5);
+        var surfs = G.paramSurfaces.surfaces.slice().sort(() => Math.random() - 0.5);
         for (let j = 0; j < 8; j++) { // Instantiate 8 parametric geometries
             var angle = j * Math.PI / 4;
             var r = (G.rings.radius[i] + G.rings.radius[i-1]) / 2;
-            var surf_height = 1.5; // TODO how to get this value properly?
-            var position = new THREE.Vector3(r * Math.cos(angle), G.rings.height + surf_height/2, r * Math.sin(angle));
-            var surf = addParametricGeometry(surfs[j].func, 50, 50, position, surfs[j].scale);
+            var position = new THREE.Vector3(r * Math.cos(angle), G.rings.height + G.paramSurfaces.dist_ring, r * Math.sin(angle));
+            var scale = Math.random() * (surfs[j].maxScale - surfs[j].minScale) + surfs[j].minScale;
+
+            var surf = addParametricGeometry(surfs[j].func, 50, 50, position, scale);
             createSpotlight(position, ref_rings[i]);
 
             ref_rings[i].add(surf);
@@ -350,12 +340,15 @@ function update(delta_t) {
     }
 
     if (resized) {
+        const inVRMode = renderer.xr.isPresenting;
+        renderer.xr.isPresenting = false;
         renderer.setSize(window.innerWidth, window.innerHeight);
 
         if(window.innerHeight > 0 && window.innerWidth > 0) {
-            camera.aspect = renderer.getSize().width / renderer.getSize().height;
-            camera.updateProjectionMatrix();
+            updateCamera(inVRMode? renderer.xr.getCamera() : camera);
         }
+        resized = false;
+        renderer.xr.isPresenting = inVRMode;
     }
 
 }
@@ -366,22 +359,6 @@ function update(delta_t) {
 function render() {
     'use strict';
     renderer.render(scene, camera);
-
-    // Update stereo camera and render
-    //stereoCamera.update(camera);
-
-    // Render left eye
-    // renderer.setScissorTest(true);
-    // renderer.setScissor(0, 0, window.innerWidth / 2, window.innerHeight);
-    // renderer.setViewport(0, 0, window.innerWidth / 2, window.innerHeight);
-    // //renderer.render(scene, stereoCamera.cameraL);
-
-    // // Render right eye
-    // renderer.setScissor(window.innerWidth / 2, 0, window.innerWidth / 2, window.innerHeight);
-    // renderer.setViewport(window.innerWidth / 2, 0, window.innerWidth / 2, window.innerHeight);
-    // renderer.render(scene, stereoCamera.cameraR);
-
-    //renderer.setScissorTest(false);
 }
 
 ////////////////////////////////
@@ -397,14 +374,13 @@ function init() {
     document.body.appendChild(renderer.domElement);
 
     // VR
-    // renderer.xr.enabled = true;
-    // document.body.appendChild(VRButton.createButton(renderer));
+    renderer.xr.enabled = true;
+    document.body.appendChild(VRButton.createButton(renderer));
 
     clock = new THREE.Clock();
 
     createScene();
-    camera = createCamera();
-    scene.add(camera);
+    createCamera();
     createGlobalLights();
 
     window.addEventListener("resize", onResize);
@@ -441,14 +417,6 @@ function onResize() {
 ///////////////////////
 function onKeyDown(e) {
     'use strict';
-
-    keyListItems.forEach(item => {
-        const listItemKey = item.getAttribute('data-key');
-        if (listItemKey === codeToKey[e.keyCode]
-            && !item.classList.contains('key-pressed')) {
-            item.classList.add('key-pressed');
-        }
-    });
 
     switch (e.keyCode) {
         case 49: // 1
@@ -525,7 +493,7 @@ function createMesh(name, geometry) {
         basic: MaterialTypes.basic(color),
     };
     
-    const mesh = new THREE.Mesh(geometry, materials.lambert); // Default to Lambert TODO: check this
+    const mesh = new THREE.Mesh(geometry, materials.lambert); // Default material
     mesh.userData = { materials };
     
     meshes.push(mesh);
@@ -687,6 +655,12 @@ function hyperboloidOfOneSheet(u, v, target) {
     const y = a * factor * Math.sin(angle);
 
     target.set(x, y, b * z);
+}
+
+function updateCamera(camera) {
+    'use strict';
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
 }
 
 init();
