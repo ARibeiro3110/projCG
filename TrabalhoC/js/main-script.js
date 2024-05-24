@@ -18,10 +18,11 @@ var resized = false;
 //////////////////////
 /* GLOBAL CONSTANTS */
 //////////////////////
+
 const G = Object.freeze({ // Geometry constants
     cylinder: { radius: 0.5, height: 12, radialSegments: 32 },
     rings: { radius: [0.5, 5, 7.5, 10], height: 0.5, thetaSegments: 32 },
-    mobiusStrip: { radius: 3, width: 1, segments: 100, tubularSegments: 50, d_cylinder: 1.5},
+    mobiusStrip: { radius: 3, width: 1, d_cylinder: 3.5},
     paramSurfaces: {
         surfaces: [
             { func: cylindricalSurface, minScale: 0.5, maxScale: 0.7 },
@@ -57,12 +58,14 @@ const materialColors = {
 const DOF = Object.freeze({ // Degrees of freedom
     carousel: { vel: 1, step: 0.1 },
     rings: [
-        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
-        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
-        { vel: 0, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
+        { vel: 1, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 1, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height},
+        { vel: 1, dir: 1, step: 2, min: 0, max: G.cylinder.height - G.rings.height },
     ],
     surfaces : new Array(24).fill({ vel: 1, step: Math.random() * 0.6 + 0.6, axis: new THREE.Vector3(Math.random(), Math.random(), Math.random()) }),
 });
+
+const verticalOffset = -(G.cylinder.height + 1.6); // Offset to make VR camera start at a higher position
 
 /////////////////////
 /* CREATE SCENE(S) */
@@ -88,10 +91,9 @@ function createCamera() {
     'use strict';
     
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-    camera.position.set(20, 20, 30);
-    camera.lookAt(scene.position);
-    
-    controls = new OrbitControls(camera, renderer.domElement);  // TODO: remove orbit controls
+    camera.position.set(20, 20 + verticalOffset, 30);
+
+    camera.lookAt(scene.position.x, scene.position.y + G.cylinder.height/2 + verticalOffset, scene.position.z);
 
     scene.add(camera);
 }
@@ -157,8 +159,7 @@ function createCarousel() {
 
     // Mobius strip
 
-    const mobiusStrip =  createMesh('mobiusStrip', MobiusStripGeometry(G.mobiusStrip.radius,
-        G.mobiusStrip.width, G.mobiusStrip.segments, G.mobiusStrip.tubularSegments));
+    const mobiusStrip =  createMesh('mobiusStrip', MobiusStripGeometry());
     mobiusStrip.position.set(0, G.cylinder.height + G.mobiusStrip.width/2 + G.mobiusStrip.d_cylinder, 0);
     mobiusStrip.rotation.x = Math.PI / 2;
 
@@ -169,11 +170,12 @@ function createCarousel() {
     // Rings
 
     var ref_rings = {};
+    const initial_ring_offset = 1.5;
 
     for (let i = 1; i <= 3; i++) {
         ref_rings[i] = new THREE.Object3D();
         ref_rings[i].name = 'ref_ring_' + i;
-        ref_rings[i].position.set(0, 0, 0);
+        ref_rings[i].position.set(0, initial_ring_offset*(3-i), 0);
 
         var geometry = createExtrudedRingGeometry(G.rings.radius[i-1], G.rings.radius[i], G.rings.height);
         var ring = createMesh('ring' + i, geometry);
@@ -203,6 +205,9 @@ function createCarousel() {
             ref_rings[i].add(surf);
         }
     }
+
+    // Add vertical offset to the carousel
+    carousel.position.y += verticalOffset;
     
     scene.add(carousel);
     
@@ -232,10 +237,13 @@ function createSkydome() {
     
     const dome = new THREE.Mesh(geometry, material);
     dome.position.set(0, 0, 0);
+    dome.rotation.y = Math.PI / 2;
+
+    // Add vertical offset to the dome
+    dome.position.y += verticalOffset;
     
     scene.add(dome);
 }
-
 
 function addParametricGeometry(func, slices, stacks, position, scale) {
     const geometry = new ParametricGeometry(func, slices, stacks);
@@ -399,8 +407,6 @@ function animate() {
 
     render();
 
-    controls.update();
-
     renderer.setAnimationLoop(animate);
 }
 
@@ -493,60 +499,105 @@ function createMesh(name, geometry) {
         basic: MaterialTypes.basic(color),
     };
     
-    const mesh = new THREE.Mesh(geometry, materials.lambert); // Default material
+    const mesh = new THREE.Mesh(geometry, materials.toon); // Default material
     mesh.userData = { materials };
     
     meshes.push(mesh);
     return mesh;
 }
 
-// Create the Mobius strip geometry
-function MobiusStripGeometry(radius, width, segments, tubularSegments) {
-    'use strict';
-
-    const mobiusGeometry = new THREE.BufferGeometry();
-    const vertices = [];
-    const normals = [];
-    const uvs = [];
-
-    for (let i = 0; i <= segments; i++) {
-        for (let j = 0; j <= tubularSegments; j++) {
-            const u = i / segments * Math.PI * 2;
-            const v = (j / tubularSegments - 0.5) * width;
-
-            const x = Math.cos(u) * (radius + v * Math.cos(u / 2));
-            const y = Math.sin(u) * (radius + v * Math.cos(u / 2));
-            const z = v * Math.sin(u / 2);
-
-            vertices.push(x, y, z);
-
-            // TODO calculate normals
-            normals.push(0, 0, 1);
-            uvs.push(i / segments, j / tubularSegments);
-        }
-    }
+// Create the Mobius strip geometry with explicit vertices and faces
+function MobiusStripGeometry() {
+    const geometry = new THREE.BufferGeometry();
 
     const indices = [];
 
-    for (let i = 1; i <= segments; i++) {
-        for (let j = 1; j <= tubularSegments; j++) {
-            const a = (tubularSegments + 1) * i + j - 1;
-            const b = (tubularSegments + 1) * (i - 1) + j - 1;
-            const c = (tubularSegments + 1) * (i - 1) + j;
-            const d = (tubularSegments + 1) * i + j;
+    // Define the vertices for the Möbius strip
+    const vertices = new Float32Array(
+        [
+            2.50, 0.00, 0.00, // v0
+            3.50, 0.00, 0.00, // v1
+            2.45, 0.52, -0.05, // v2
+            3.42, 0.73, 0.05, // v3
+            2.29, 1.02, -0.10, // v4
+            3.19, 1.42, 0.10, // v5
+            2.04, 1.48, -0.15, // v6
+            2.81, 2.04, 0.15, // v7
+            1.70, 1.89, -0.20, // v8
+            2.31, 2.57, 0.20, // v9
+            1.28, 2.22, -0.25, // v10
+            1.72, 2.97, 0.25, // v11
+            0.80, 2.47, -0.29, // v12
+            1.05, 3.24, 0.29, // v13
+            0.27, 2.61, -0.33, // v14
+            0.35, 3.35, 0.33, // v15
+            -0.28, 2.65, -0.37, // v16
+            -0.35, 3.32, 0.37, // v17
+            -0.84, 2.57, -0.40, // v18
+            -1.02, 3.13, 0.40, // v19
+            -1.37, 2.38, -0.43, // v20
+            -1.62, 2.81, 0.43, // v21
+            -1.87, 2.08, -0.46, // v22
+            -2.14, 2.38, 0.46, // v23
+            -2.30, 1.67, -0.48, // v24
+            -2.55, 1.85, 0.48, // v25
+            -2.65, 1.18, -0.49, // v26
+            -2.84, 1.26, 0.49, // v27
+            -2.88, 0.61, -0.50, // v28
+            -2.99, 0.63, 0.50, // v29
+            -3.00, 0.00, -0.50, // v30
+            -3.00, 0.00, 0.50, // v31
+            -2.99, -0.63, -0.50, // v32
+            -2.88, -0.61, 0.50, // v33
+            -2.84, -1.26, -0.49, // v34
+            -2.65, -1.18, 0.49, // v35
+            -2.55, -1.85, -0.48, // v36
+            -2.30, -1.67, 0.48, // v37
+            -2.14, -2.38, -0.46, // v38
+            -1.87, -2.08, 0.46, // v39
+            -1.63, -2.81, -0.43, // v40
+            -1.38, -2.38, 0.43, // v41
+            -1.02, -3.13, -0.40, // v42
+            -0.84, -2.57, 0.40, // v43
+            -0.35, -3.32, -0.37, // v44
+            -0.28, -2.65, 0.37, // v45
+            0.35, -3.35, -0.33, // v46
+            0.27, -2.61, 0.33, // v47
+            1.05, -3.24, -0.29, // v48
+            0.80, -2.47, 0.29, // v49
+            1.72, -2.97, -0.25, // v50
+            1.28, -2.22, 0.25, // v51
+            2.31, -2.57, -0.20, // v52
+            1.70, -1.89, 0.20, // v53
+            2.81, -2.04, -0.15, // v54
+            2.04, -1.48, 0.15, // v55
+            3.19, -1.42, -0.10, // v56
+            2.29, -1.02, 0.10, // v57
+            3.42, -0.73, -0.05, // v58
+            2.45, -0.52, 0.05, // v59
+            3.50, -0.00, -0.00, // v60
+            2.50, -0.00, 0.00, // v61
+        ]);
 
-            indices.push(a, b, d);
-            indices.push(b, c, d);
-        }
+    // Define the faces (two triangles per segment to form a quad)
+    for (let i = 0; i < 30; i++) {
+        const currentA = i * 2;
+        const currentB = currentA + 1;
+        const nextA = (i + 1) * 2;
+        const nextB = nextA + 1;
+
+        indices.push(currentA, nextA, nextB);
+        indices.push(currentA, nextB, currentB);
     }
 
-    mobiusGeometry.setIndex(indices);
-    mobiusGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    mobiusGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    mobiusGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
 
-    return mobiusGeometry;
+    geometry.computeVertexNormals();
+
+    return geometry;
 }
+
 
 // Create an extruded ring geometry
 function createExtrudedRingGeometry(innerRadius, outerRadius, height) {
